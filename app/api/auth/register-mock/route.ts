@@ -3,10 +3,14 @@ import { validateInput, registerSchema } from '@/lib/schemas'
 import { hashPassword } from '@/lib/crypto'
 import { createToken } from '@/lib/auth'
 import { mockStorage } from '@/lib/mock-storage'
+import { checkRateLimit, getClientIP } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
     console.log('Registration request started (MOCK)')
+    
+    // Get client IP for potential rate limiting
+    const clientIP = getClientIP(request.headers)
     
     // Parse and validate request body
     const body = await request.json()
@@ -20,6 +24,34 @@ export async function POST(request: NextRequest) {
     console.log('Email check completed')
 
     if (existingUserByEmail) {
+      // Record failed attempt for rate limiting (duplicate email)
+      const { recordFailedAttempt } = await import('@/lib/rate-limit')
+      recordFailedAttempt(clientIP)
+      
+      // Check rate limiting for failed attempts
+      const { checkRateLimit } = await import('@/lib/rate-limit')
+      const rateLimitResult = checkRateLimit(clientIP)
+      
+      if (!rateLimitResult.allowed) {
+        return NextResponse.json(
+          {
+            error: 'Too Many Requests',
+            message: 'Rate limit exceeded. Please try again later.',
+            status: 429,
+            retryAfter: rateLimitResult.retryAfter
+          },
+          { 
+            status: 429,
+            headers: {
+              'Retry-After': rateLimitResult.retryAfter?.toString() || '3600',
+              'X-RateLimit-Limit': '5',
+              'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+              'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
+            }
+          }
+        )
+      }
+      
       return NextResponse.json(
         {
           error: 'Conflict',
@@ -35,6 +67,34 @@ export async function POST(request: NextRequest) {
     console.log('Username check completed')
 
     if (existingUserByUsername) {
+      // Record failed attempt for rate limiting (duplicate username)
+      const { recordFailedAttempt } = await import('@/lib/rate-limit')
+      recordFailedAttempt(clientIP)
+      
+      // Check rate limiting for failed attempts
+      const { checkRateLimit } = await import('@/lib/rate-limit')
+      const rateLimitResult = checkRateLimit(clientIP)
+      
+      if (!rateLimitResult.allowed) {
+        return NextResponse.json(
+          {
+            error: 'Too Many Requests',
+            message: 'Rate limit exceeded. Please try again later.',
+            status: 429,
+            retryAfter: rateLimitResult.retryAfter
+          },
+          { 
+            status: 429,
+            headers: {
+              'Retry-After': rateLimitResult.retryAfter?.toString() || '3600',
+              'X-RateLimit-Limit': '5',
+              'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+              'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
+            }
+          }
+        )
+      }
+      
       return NextResponse.json(
         {
           error: 'Conflict',

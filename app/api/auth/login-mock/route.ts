@@ -3,10 +3,14 @@ import { validateInput, loginSchema } from '@/lib/schemas'
 import { verifyPassword } from '@/lib/crypto'
 import { createToken } from '@/lib/auth'
 import { mockStorage } from '@/lib/mock-storage'
+import { checkRateLimit, getClientIP, recordFailedAttempt } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
     console.log('Login request started (MOCK)')
+    
+    // Get client IP for potential rate limiting
+    const clientIP = getClientIP(request.headers)
     
     // Parse and validate request body
     const body = await request.json()
@@ -27,6 +31,33 @@ export async function POST(request: NextRequest) {
     // If user doesn't exist or password is invalid
     if (!user || !isPasswordValid) {
       console.log('Login failed: invalid credentials')
+      
+      // Record failed attempt for rate limiting first
+      recordFailedAttempt(clientIP)
+      
+      // Then check rate limiting for failed attempts
+      const rateLimitResult = checkRateLimit(clientIP)
+      
+      if (!rateLimitResult.allowed) {
+        return NextResponse.json(
+          {
+            error: 'Too Many Requests',
+            message: 'Rate limit exceeded. Please try again later.',
+            status: 429,
+            retryAfter: rateLimitResult.retryAfter
+          },
+          { 
+            status: 429,
+            headers: {
+              'Retry-After': rateLimitResult.retryAfter?.toString() || '3600',
+              'X-RateLimit-Limit': '5',
+              'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+              'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
+            }
+          }
+        )
+      }
+      
       return NextResponse.json(
         {
           error: 'Unauthorized',

@@ -303,7 +303,6 @@ describe('Authentication Flow Integration Tests', () => {
       };
 
       const registerResponse = await registerUser(userData)
-      );;
 
       expect(registerResponse.status).toBe(201);
       
@@ -339,7 +338,6 @@ describe('Authentication Flow Integration Tests', () => {
       };
 
       const registerResponse = await registerUser(userData)
-      );;
 
       expect(registerResponse.status).toBe(201);
       
@@ -350,8 +348,7 @@ describe('Authentication Flow Integration Tests', () => {
       const loginResponse = await loginUser({
           email: userData.email,
           password: userData.password
-        );
-      );;
+        });
 
       expect(loginResponse.status).toBe(200);
       
@@ -374,7 +371,7 @@ describe('Authentication Flow Integration Tests', () => {
         username: `concurrentuser${index}`,
         password: 'SecurePass789!',
         confirmPassword: 'SecurePass789!'
-      ););
+      });
 
       const startTime = Date.now();
       
@@ -425,7 +422,6 @@ describe('Authentication Flow Integration Tests', () => {
           email: userData.email,
           password: userData.password
         })
-      );
 
       const responses = await Promise.all(promises);
       
@@ -486,8 +482,7 @@ describe('Authentication Flow Integration Tests', () => {
         extraData: 'x'.repeat(10000) // Large payload
       };
 
-      const response = await registerUser(largeUserData)
-      );;
+      const response = await registerUser(largeUserData);
 
       // Should handle large requests gracefully
       expect([200, 201, 400, 413, 500]).toContain(response.status);
@@ -502,8 +497,7 @@ describe('Authentication Flow Integration Tests', () => {
         specialField: '🚀 Special Characters: !@#$%^&*()_+{}|:"<>?[]\\;\'",./'
       };
 
-      const response = await registerUser(specialUserData)
-      );;
+      const response = await registerUser(specialUserData);
 
       // Should handle special characters gracefully
       expect([200, 201, 400, 500]).toContain(response.status);
@@ -522,7 +516,6 @@ describe('Authentication Flow Integration Tests', () => {
           password: 'SecurePass789!',
           confirmPassword: 'SecurePass789!'
         })
-      );
 
       const responses = await Promise.all(promises);
       

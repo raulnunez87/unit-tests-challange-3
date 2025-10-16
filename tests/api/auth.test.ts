@@ -319,11 +319,28 @@ describe('Authentication API', () => {
 
   describe('Rate Limiting', () => {
     it('should enforce rate limiting on registration', async () => {
-      // Make multiple registration requests from same IP
+      // First, create a user to make subsequent registrations fail
+      const initialUser = {
+        ...testUser,
+        email: 'duplicate@example.com',
+        username: 'initialuser'
+      }
+      
+      const initialRequest = new NextRequest('http://localhost:3000/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': '192.168.1.1'
+        },
+        body: JSON.stringify(initialUser)
+      })
+      await registerHandler(initialRequest)
+
+      // Now make multiple registration requests with duplicate email to trigger failures
       for (let i = 0; i < 6; i++) {
         const user = {
           ...testUser,
-          email: `test${i}@example.com`,
+          email: 'duplicate@example.com', // Same email to trigger duplicate error
           username: `testuser${i}`
         }
 
@@ -339,8 +356,8 @@ describe('Authentication API', () => {
         const response = await registerHandler(request)
         
         if (i < 5) {
-          // First 5 requests should succeed (or fail validation)
-          expect(response.status).not.toBe(429)
+          // First 5 requests should fail with 409 (duplicate email)
+          expect(response.status).toBe(409)
         } else {
           // 6th request should be rate limited
           const data = await response.json()
@@ -362,7 +379,7 @@ describe('Authentication API', () => {
       })
       await registerHandler(registerRequest)
 
-      // Make multiple login requests from same IP
+      // Make multiple failed login requests from same IP
       for (let i = 0; i < 6; i++) {
         const request = new NextRequest('http://localhost:3000/api/auth/login', {
           method: 'POST',
@@ -370,18 +387,17 @@ describe('Authentication API', () => {
             'Content-Type': 'application/json',
             'x-forwarded-for': '192.168.1.1'
           },
-          body: JSON.stringify(testLogin)
+          body: JSON.stringify({
+            email: testLogin.email,
+            password: 'WrongPassword123!' // Wrong password to trigger failed attempts
+          })
         })
 
         const response = await loginHandler(request)
         
         if (i < 5) {
-          // First request should succeed, others should fail auth
-          if (i === 0) {
-            expect(response.status).toBe(200)
-          } else {
-            expect(response.status).toBe(401)
-          }
+          // First 5 requests should fail with 401
+          expect(response.status).toBe(401)
         } else {
           // 6th request should be rate limited
           const data = await response.json()

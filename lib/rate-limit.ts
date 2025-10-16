@@ -115,7 +115,7 @@ export function checkRateLimit(ip: string): RateLimitResult {
     }
 
     // Check if limit exceeded
-    if (updatedData.attempts > RATE_LIMIT_MAX_ATTEMPTS) {
+    if (updatedData.attempts >= RATE_LIMIT_MAX_ATTEMPTS) {
       // Block IP for specified duration
       updatedData.blockedUntil = now + RATE_LIMIT_BLOCK_DURATION_MS
       rateLimitCache.set(ip, updatedData)
