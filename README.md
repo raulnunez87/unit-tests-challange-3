@@ -50,7 +50,7 @@ Then visit `http://localhost:3000` and click "Test Registration"!
 ### Prerequisites
 
 - Node.js 18+
-- npm or yarn
+- npm (package manager)
 - Docker (optional, for full database functionality)
 
 ### Full Setup (With Database)
@@ -321,7 +321,7 @@ Common HTTP status codes:
 
 ### Type Checking
 ```bash
-npm run type-check
+npm run typecheck
 ```
 
 ### Linting
@@ -341,75 +341,99 @@ npx prisma db push
 npx prisma studio
 ```
 
-## 🛠️ Comandos Locales Disponibles
+## 🚀 CI/CD Pipeline
 
-### Análisis de Seguridad
+This project includes a comprehensive GitHub Actions CI/CD pipeline with npm-based workflows:
+
+### CI Pipeline (`.github/workflows/ci.yml`)
+- **Build & Test**: Runs on every push and PR to `main`/`develop` branches
+- **Security Analysis**: SAST with Semgrep, SCA with Trivy and npm audit
+- **Coverage Reports**: Generates and uploads test coverage artifacts
+- **Dynamic Testing**: Optional DAST with ZAP Baseline for PRs
+- **Deployment**: Automatic deployment to production on main branch pushes
+
+### Security Pipeline (`.github/workflows/security.yml`)
+- **Scheduled Scans**: Daily security analysis at 2 AM UTC
+- **Manual Scans**: On-demand security testing with different scan types
+- **Comprehensive Coverage**: SAST, SCA, and DAST analysis
+- **SARIF Integration**: Uploads results to GitHub Security tab
+
+### Key Features
+- ✅ **npm-based**: Uses `npm ci` for reliable, fast dependency installation
+- ✅ **Artifact Upload**: Uses `actions/upload-artifact@v4` (latest version)
+- ✅ **Security Gates**: Blocks deployment on critical vulnerabilities
+- ✅ **Coverage Thresholds**: Enforces 80% code coverage minimum
+- ✅ **Multi-environment**: Supports development, staging, and production
+
+## 🛠️ Available Commands
+
+### Security Analysis
 
 ```bash
-# Análisis de seguridad completo
-pnpm sec:check
+# Complete security analysis
+npm run sec:check
 
-# Análisis individual
-pnpm sec:sast    # SAST con Semgrep
-pnpm sec:sca     # SCA con Trivy + pnpm audit
-pnpm sec:dast    # DAST con ZAP
+# Individual analysis
+npm run sec:sast    # SAST with Semgrep
+npm run sec:sca     # SCA with Trivy + npm audit
+npm run sec:dast    # DAST with ZAP
 
-# Tests con cobertura
-pnpm test:ci
+# Tests with coverage
+npm run test:ci
 
-# Arreglar vulnerabilidades
-pnpm sec:audit-fix
+# Fix vulnerabilities
+npm run sec:audit-fix
 ```
 
-### Comandos de Desarrollo
+### Development Commands
 
 ```bash
-# Linting y corrección automática
-pnpm lint:fix
+# Linting and automatic fixes
+npm run lint:fix
 
 # Type checking
-pnpm typecheck
+npm run typecheck
 
-# Build de producción
-pnpm build
+# Production build
+npm run build
 
-# Tests con cobertura y umbrales
-pnpm test:coverage
+# Tests with coverage and thresholds
+npm run test:coverage
 
-# Tests en modo watch
-pnpm test:watch
+# Tests in watch mode
+npm run test:watch
 ```
 
-### Comandos de Base de Datos
+### Database Commands
 
 ```bash
-# Generar cliente Prisma
-pnpm db:generate
+# Generate Prisma client
+npm run db:generate
 
-# Aplicar cambios de esquema
-pnpm db:push
+# Apply schema changes
+npm run db:push
 
-# Abrir Prisma Studio
-pnpm db:studio
+# Open Prisma Studio
+npm run db:studio
 
-# Seed de datos
-pnpm db:seed
+# Seed data
+npm run db:seed
 ```
 
-### Comandos de Docker
+### Docker Commands
 
 ```bash
-# Levantar servicios
-pnpm docker:up
+# Start services
+npm run docker:up
 
-# Detener servicios
-pnpm docker:down
+# Stop services
+npm run docker:down
 
-# Ver logs
-pnpm docker:logs
+# View logs
+npm run docker:logs
 
-# Reiniciar servicios
-pnpm docker:restart
+# Restart services
+npm run docker:restart
 ```
 
 ## 🔧 Troubleshooting

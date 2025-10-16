@@ -8,7 +8,6 @@ on:
 
 env:
   NODE_VERSION: '20'
-  PNPM_VERSION: '8'
 
 jobs:
   # Job principal: Build, Lint, TypeCheck y Tests con cobertura
@@ -26,43 +25,22 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Generate Prisma client
-        run: pnpm db:generate
+        run: npm run db:generate
 
       - name: Lint código
-        run: pnpm lint
+        run: npm run lint
         continue-on-error: false
 
       - name: Type check
-        run: npx tsc --noEmit
+        run: npm run typecheck
         continue-on-error: false
 
       - name: Run tests with coverage
-        run: pnpm test:ci
+        run: npm run test:ci
         continue-on-error: false
 
       - name: Upload coverage reports
@@ -125,16 +103,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       # SAST: Semgrep con reglas OWASP y Node.js
       - name: Run Semgrep SAST
@@ -175,18 +145,18 @@ jobs:
           sarif_file: trivy-fs.sarif
           category: trivy-fs
 
-      # SCA: pnpm audit
-      - name: Run pnpm audit
+      # SCA: npm audit
+      - name: Run npm audit
         run: |
-          echo "🔍 Running pnpm audit with high severity threshold..."
-          pnpm audit --audit-level=high --json > audit-results.json || true
+          echo "🔍 Running npm audit with high severity threshold..."
+          npm audit --audit-level=high --json > audit-results.json || true
           
           # Parse audit results and fail if High/Critical vulnerabilities found
           if [ -f audit-results.json ]; then
             HIGH_VULNS=$(cat audit-results.json | jq '.advisories | to_entries | map(select(.value.severity == "high" or .value.severity == "critical")) | length')
             if [ "$HIGH_VULNS" -gt 0 ]; then
               echo "❌ Found $HIGH_VULNS High/Critical vulnerabilities"
-              echo "Run 'pnpm audit --fix' to resolve automatically fixable issues"
+              echo "Run 'npm audit fix' to resolve automatically fixable issues"
               cat audit-results.json | jq '.advisories | to_entries | map(select(.value.severity == "high" or .value.severity == "critical")) | .[].value | {id, title, severity, vulnerable_versions}'
               exit 1
             else
@@ -220,28 +190,20 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Generate Prisma client
-        run: pnpm db:generate
+        run: npm run db:generate
 
       - name: Build application
-        run: pnpm build
+        run: npm run build
         env:
           JWT_SECRET: test-jwt-secret-that-is-at-least-32-characters-long
 
       - name: Start application
         run: |
-          pnpm start &
+          npm start &
           sleep 10
           curl -f http://localhost:3000 || exit 1
         env:
@@ -281,22 +243,14 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Generate Prisma client
-        run: pnpm db:generate
+        run: npm run db:generate
 
       - name: Build application
-        run: pnpm build
+        run: npm run build
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
 

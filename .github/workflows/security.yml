@@ -19,7 +19,6 @@ on:
 
 env:
   NODE_VERSION: '20'
-  PNPM_VERSION: '8'
 
 jobs:
   # Análisis de seguridad completo programado
@@ -40,16 +39,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       # SAST: Semgrep con reglas completas
       - name: Run Semgrep Full Scan
@@ -95,11 +86,11 @@ jobs:
           sarif_file: trivy-comprehensive.sarif
           category: trivy-comprehensive
 
-      # Análisis de dependencias con pnpm
-      - name: Run pnpm audit comprehensive
+      # Análisis de dependencias con npm
+      - name: Run npm audit comprehensive
         run: |
-          echo "🔍 Running comprehensive pnpm audit..."
-          pnpm audit --audit-level=moderate --json > audit-comprehensive.json || true
+          echo "🔍 Running comprehensive npm audit..."
+          npm audit --audit-level=moderate --json > audit-comprehensive.json || true
           
           # Análisis detallado de vulnerabilidades
           if [ -f audit-comprehensive.json ]; then
@@ -143,17 +134,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
+          cache: 'npm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Run Semgrep SAST
         uses: returntocorp/semgrep-action@v1
@@ -189,17 +173,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
+          cache: 'npm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Run Trivy SCA
         uses: aquasecurity/trivy-action@master
@@ -218,10 +195,10 @@ jobs:
           sarif_file: trivy-sca.sarif
           category: trivy-sca
 
-      - name: Run pnpm audit
+      - name: Run npm audit
         run: |
-          echo "🔍 Running pnpm audit..."
-          pnpm audit --audit-level=high --json > audit-sca.json || true
+          echo "🔍 Running npm audit..."
+          npm audit --audit-level=high --json > audit-sca.json || true
           
           if [ -f audit-sca.json ]; then
             HIGH_VULNS=$(cat audit-sca.json | jq '.advisories | to_entries | map(select(.value.severity == "high" or .value.severity == "critical")) | length')
@@ -247,29 +224,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
+          cache: 'npm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Generate Prisma client
-        run: pnpm db:generate
+        run: npm run db:generate
 
       - name: Build application
-        run: pnpm build
+        run: npm run build
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
       - name: Start application
         run: |
-          pnpm start &
+          npm start &
           sleep 15
           curl -f http://localhost:3000 || exit 1
         env:
