@@ -14,6 +14,7 @@ export interface MockUser {
 
 // Use global variable to persist data across requests in development
 declare global {
+  // eslint-disable-next-line no-var
   var __mockUsers: MockUser[] | undefined
 }
 
