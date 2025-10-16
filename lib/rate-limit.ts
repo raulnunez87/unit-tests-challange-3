@@ -189,13 +189,19 @@ export function recordFailedAttempt(ip: string): void {
 }
 
 /**
- * Clears rate limit data for an IP address
+ * Clears rate limit data for an IP address or all data
  * Used for testing or manual IP unblocking
  * 
- * @param ip - IP address to clear
+ * @param ip - IP address to clear, or undefined to clear all data
  */
-export function clearRateLimit(ip: string): void {
+export function clearRateLimit(ip?: string): void {
   try {
+    if (ip === undefined) {
+      // Clear all data
+      rateLimitCache.clear()
+      return
+    }
+    
     if (!ip || typeof ip !== 'string') {
       return
     }

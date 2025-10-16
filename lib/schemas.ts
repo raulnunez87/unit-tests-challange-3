@@ -7,12 +7,14 @@ import { z } from 'zod'
 
 // Common validation patterns for security
 const emailSchema = z.string()
+  .trim()
   .email('Invalid email format')
   .min(5, 'Email must be at least 5 characters')
   .max(254, 'Email must not exceed 254 characters') // RFC 5321 limit
   .toLowerCase()
 
 const usernameSchema = z.string()
+  .trim()
   .min(3, 'Username must be at least 3 characters')
   .max(30, 'Username must not exceed 30 characters')
   .regex(/^[a-zA-Z0-9_-]+$/, 'Username can only contain letters, numbers, hyphens, and underscores')

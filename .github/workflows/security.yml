@@ -1,0 +1,343 @@
+name: Security Scan
+
+on:
+  schedule:
+    # Ejecutar análisis de seguridad diario a las 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: 'Tipo de escaneo'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+        - full
+        - sast
+        - sca
+        - dast
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '8'
+
+jobs:
+  # Análisis de seguridad completo programado
+  security-full-scan:
+    name: Full Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.scan_type == 'full')
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Necesario para análisis completo de git history
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # SAST: Semgrep con reglas completas
+      - name: Run Semgrep Full Scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/owasp-top-ten
+            p/nodejs
+            p/security-audit
+            p/secrets
+            p/expressjs
+            p/react
+            p/nextjs
+            p/typescript
+          generateSarif: "1"
+          sarifFile: "semgrep-full.sarif"
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+      - name: Upload Semgrep SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep-full.sarif
+          category: semgrep-full
+
+      # SCA: Trivy con análisis completo
+      - name: Run Trivy comprehensive scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-comprehensive.sarif'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-comprehensive.sarif
+          category: trivy-comprehensive
+
+      # Análisis de dependencias con pnpm
+      - name: Run pnpm audit comprehensive
+        run: |
+          echo "🔍 Running comprehensive pnpm audit..."
+          pnpm audit --audit-level=moderate --json > audit-comprehensive.json || true
+          
+          # Análisis detallado de vulnerabilidades
+          if [ -f audit-comprehensive.json ]; then
+            CRITICAL=$(cat audit-comprehensive.json | jq '.advisories | to_entries | map(select(.value.severity == "critical")) | length')
+            HIGH=$(cat audit-comprehensive.json | jq '.advisories | to_entries | map(select(.value.severity == "high")) | length')
+            MODERATE=$(cat audit-comprehensive.json | jq '.advisories | to_entries | map(select(.value.severity == "moderate")) | length')
+            
+            echo "📊 Vulnerability Summary:"
+            echo "  Critical: $CRITICAL"
+            echo "  High: $HIGH"
+            echo "  Moderate: $MODERATE"
+            
+            if [ "$CRITICAL" -gt 0 ]; then
+              echo "❌ CRITICAL vulnerabilities found - immediate action required!"
+              exit 1
+            elif [ "$HIGH" -gt 0 ]; then
+              echo "⚠️ HIGH vulnerabilities found - review required"
+              # No fallar en scheduled scans para High, solo reportar
+            fi
+          fi
+
+      - name: Upload comprehensive audit results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: audit-comprehensive
+          path: audit-comprehensive.json
+          retention-days: 90
+
+  # Análisis SAST independiente
+  security-sast-only:
+    name: SAST Only
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.scan_type == 'sast'
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Semgrep SAST
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/owasp-top-ten
+            p/nodejs
+            p/security-audit
+            p/secrets
+          generateSarif: "1"
+          sarifFile: "semgrep-sast.sarif"
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+      - name: Upload Semgrep SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep-sast.sarif
+          category: semgrep-sast
+
+  # Análisis SCA independiente
+  security-sca-only:
+    name: SCA Only
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.scan_type == 'sca'
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Trivy SCA
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-sca.sarif'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-sca.sarif
+          category: trivy-sca
+
+      - name: Run pnpm audit
+        run: |
+          echo "🔍 Running pnpm audit..."
+          pnpm audit --audit-level=high --json > audit-sca.json || true
+          
+          if [ -f audit-sca.json ]; then
+            HIGH_VULNS=$(cat audit-sca.json | jq '.advisories | to_entries | map(select(.value.severity == "high" or .value.severity == "critical")) | length')
+            if [ "$HIGH_VULNS" -gt 0 ]; then
+              echo "❌ Found $HIGH_VULNS High/Critical vulnerabilities"
+              exit 1
+            else
+              echo "✅ No High/Critical vulnerabilities found"
+            fi
+          fi
+
+  # Análisis DAST independiente
+  security-dast-only:
+    name: DAST Only
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.scan_type == 'dast'
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Build application
+        run: pnpm build
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
+      - name: Start application
+        run: |
+          pnpm start &
+          sleep 15
+          curl -f http://localhost:3000 || exit 1
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
+      - name: Run ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.7.0
+        with:
+          target: 'http://localhost:3000'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+
+      - name: Upload ZAP results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: zap-dast-results
+          path: zap-results/
+          retention-days: 30
+
+  # Notificación de resultados de seguridad
+  security-notify:
+    name: Security Notifications
+    runs-on: ubuntu-latest
+    needs: [security-full-scan, security-sast-only, security-sca-only, security-dast-only]
+    if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    
+    steps:
+      - name: Create security summary
+        run: |
+          echo "🔒 Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "=========================" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ github.event_name }}" == "schedule" ]; then
+            echo "📅 **Scheduled Security Scan** - $(date)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🔧 **Manual Security Scan** - $(date)" >> $GITHUB_STEP_SUMMARY
+            echo "Scan Type: ${{ github.event.inputs.scan_type }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Results:" >> $GITHUB_STEP_SUMMARY
+          
+          # Verificar resultados de cada job
+          if [ "${{ needs.security-full-scan.result }}" == "success" ]; then
+            echo "✅ Full Security Scan: PASSED" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.security-full-scan.result }}" == "failure" ]; then
+            echo "❌ Full Security Scan: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.security-sast-only.result }}" == "success" ]; then
+            echo "✅ SAST Scan: PASSED" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.security-sast-only.result }}" == "failure" ]; then
+            echo "❌ SAST Scan: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.security-sca-only.result }}" == "success" ]; then
+            echo "✅ SCA Scan: PASSED" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.security-sca-only.result }}" == "failure" ]; then
+            echo "❌ SCA Scan: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.security-dast-only.result }}" == "success" ]; then
+            echo "✅ DAST Scan: PASSED" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.security-dast-only.result }}" == "failure" ]; then
+            echo "❌ DAST Scan: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📊 Check the Security tab for detailed SARIF reports" >> $GITHUB_STEP_SUMMARY

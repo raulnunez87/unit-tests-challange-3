@@ -1,17 +1,42 @@
 {
-  "name": "secure-auth-module",
+  "name": "nextjs-auth-system",
   "version": "1.0.0",
-  "description": "Secure authentication module with Next.js, Prisma, and MongoDB",
-  "private": true,
+  "description": "Complete Next.js 14 authentication system with MongoDB, Prisma, and comprehensive testing",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "JWT_SECRET=test-jwt-secret-that-is-at-least-32-characters-long npm run build:next",
+    "build:next": "next build",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
-    "type-check": "tsc --noEmit"
+    "test:coverage:threshold": "vitest --coverage --coverage.thresholds.lines=80 --coverage.thresholds.branches=80",
+    "test:unit": "vitest tests/unit",
+    "test:security": "vitest tests/security",
+    "test:integration": "vitest tests/integration",
+    "test:all": "vitest tests/unit tests/security tests/integration",
+    "test:ci": "vitest --coverage --coverage.thresholds.lines=80 --coverage.thresholds.branches=80 --reporter=verbose",
+    "test:python": "cd pytests && python -m pytest test_auth_flow.py -v",
+    "test:python:coverage": "cd pytests && python -m pytest test_auth_flow.py --cov=. --cov-report=html -v",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:seed": "prisma db seed",
+    "db:studio": "prisma studio",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "docker:restart": "docker compose restart",
+    "clean": "rm -rf .next node_modules/.cache",
+    "reset": "npm run clean && npm install && npm run db:generate",
+    "sec:sast": "semgrep --config=auto --config=p/owasp-top-ten --config=p/nodejs --config=p/security-audit --config=p/secrets --sarif --output=semgrep-local.sarif .",
+    "sec:sca": "trivy fs --format sarif --output trivy-local.sarif . && pnpm audit --audit-level=high",
+    "sec:dast": "echo 'Starting local app for DAST...' && pnpm build && pnpm start & sleep 10 && zap-baseline.py -t http://localhost:3000 -r zap-local-report.html && pkill -f 'next start'",
+    "sec:full": "pnpm sec:sast && pnpm sec:sca",
+    "sec:audit-fix": "pnpm audit --fix",
+    "sec:check": "pnpm sec:full && echo '✅ All security checks passed locally'",
+    "lint:fix": "next lint --fix",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "next": "^14.0.0",
@@ -29,12 +54,15 @@
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
     "@types/bcrypt": "^5.0.0",
-    "@types/supertest": "^6.0.0",
     "typescript": "^5.0.0",
-    "eslint": "^8.0.0",
-    "eslint-config-next": "^14.0.0",
     "vitest": "^1.0.0",
+    "@vitest/coverage-v8": "^1.0.0",
     "supertest": "^6.3.0",
-    "@vitest/coverage-v8": "^1.0.0"
+    "@types/supertest": "^6.0.0",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "^14.0.0"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }

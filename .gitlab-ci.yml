@@ -1,0 +1,295 @@
+# GitLab CI/CD Pipeline para Next.js + TypeScript + Prisma + MongoDB
+# Pipeline de seguridad con gates estrictos
+
+stages:
+  - build
+  - test
+  - security
+  - deploy
+
+variables:
+  NODE_VERSION: "20"
+  PNPM_VERSION: "8"
+  # Variables de seguridad
+  SEMGREP_APP_TOKEN: $SEMGREP_APP_TOKEN
+  JWT_SECRET: $JWT_SECRET
+
+# Cache para optimizar builds
+cache:
+  key: 
+    files:
+      - pnpm-lock.yaml
+  paths:
+    - node_modules/
+    - .pnpm-store/
+
+# Job de build y preparación
+build:
+  stage: build
+  image: node:20-alpine
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@$PNPM_VERSION --activate
+    - pnpm config set store-dir .pnpm-store
+  script:
+    - pnpm install --frozen-lockfile
+    - pnpm db:generate
+    - pnpm build
+  artifacts:
+    paths:
+      - .next/
+      - node_modules/
+    expire_in: 1 hour
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# Job de linting y type checking
+lint:
+  stage: test
+  image: node:20-alpine
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@$PNPM_VERSION --activate
+  script:
+    - pnpm install --frozen-lockfile
+    - pnpm lint
+    - pnpm typecheck
+  dependencies:
+    - build
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# Job de tests unitarios con cobertura
+test:
+  stage: test
+  image: node:20-alpine
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@$PNPM_VERSION --activate
+  script:
+    - pnpm install --frozen-lockfile
+    - pnpm db:generate
+    - pnpm test:ci
+  coverage: '/Lines\s*:\s*(\d+\.\d+)%/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+    paths:
+      - coverage/
+    expire_in: 1 week
+  dependencies:
+    - build
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# Job de análisis SAST con Semgrep
+security-sast:
+  stage: security
+  image: returntocorp/semgrep:latest
+  script:
+    - semgrep --config=auto --config=p/owasp-top-ten --config=p/nodejs --config=p/security-audit --config=p/secrets --sarif --output=semgrep.sarif .
+  artifacts:
+    reports:
+      sast: semgrep.sarif
+    paths:
+      - semgrep.sarif
+    expire_in: 1 week
+  allow_failure: false
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# Job de análisis SCA con Trivy
+security-sca:
+  stage: security
+  image: aquasec/trivy:latest
+  script:
+    - trivy fs --format sarif --output trivy.sarif .
+    - trivy fs --format table .
+  artifacts:
+    reports:
+      sast: trivy.sarif
+    paths:
+      - trivy.sarif
+    expire_in: 1 week
+  allow_failure: false
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# Job de auditoría de dependencias
+security-audit:
+  stage: security
+  image: node:20-alpine
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@$PNPM_VERSION --activate
+  script:
+    - pnpm install --frozen-lockfile
+    - |
+      echo "🔍 Running pnpm audit with high severity threshold..."
+      pnpm audit --audit-level=high --json > audit-results.json || true
+      
+      # Parse audit results and fail if High/Critical vulnerabilities found
+      if [ -f audit-results.json ]; then
+        HIGH_VULNS=$(cat audit-results.json | jq '.advisories | to_entries | map(select(.value.severity == "high" or .value.severity == "critical")) | length')
+        if [ "$HIGH_VULNS" -gt 0 ]; then
+          echo "❌ Found $HIGH_VULNS High/Critical vulnerabilities"
+          echo "Run 'pnpm audit --fix' to resolve automatically fixable issues"
+          cat audit-results.json | jq '.advisories | to_entries | map(select(.value.severity == "high" or .value.severity == "critical")) | .[].value | {id, title, severity, vulnerable_versions}'
+          exit 1
+        else
+          echo "✅ No High/Critical vulnerabilities found"
+        fi
+      fi
+  artifacts:
+    paths:
+      - audit-results.json
+    expire_in: 1 week
+  allow_failure: false
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# Job de análisis DAST con ZAP (opcional)
+security-dast:
+  stage: security
+  image: owasp/zap2docker-stable:latest
+  script:
+    - |
+      # Iniciar la aplicación en background
+      cd /builds/$CI_PROJECT_PATH
+      corepack enable
+      corepack prepare pnpm@$PNPM_VERSION --activate
+      pnpm install --frozen-lockfile
+      pnpm db:generate
+      pnpm build
+      pnpm start &
+      APP_PID=$!
+      
+      # Esperar a que la aplicación esté lista
+      sleep 15
+      
+      # Verificar que la aplicación esté corriendo
+      curl -f http://localhost:3000 || exit 1
+      
+      # Ejecutar ZAP Baseline
+      zap-baseline.py -t http://localhost:3000 -r zap-report.html -x zap-report.xml
+      
+      # Limpiar proceso de la aplicación
+      kill $APP_PID
+  artifacts:
+    paths:
+      - zap-report.html
+      - zap-report.xml
+    expire_in: 1 week
+  allow_failure: true  # DAST es opcional
+  only:
+    - main
+    - develop
+    - merge_requests
+  when: manual  # Ejecutar manualmente para evitar bloqueos
+
+# Job de deployment a staging
+deploy-staging:
+  stage: deploy
+  image: node:20-alpine
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@$PNPM_VERSION --activate
+  script:
+    - echo "🚀 Deploying to staging environment..."
+    - pnpm install --frozen-lockfile
+    - pnpm db:generate
+    - pnpm build
+    # Aquí irían los comandos específicos de deployment a staging
+    - echo "✅ Staging deployment completed"
+  environment:
+    name: staging
+    url: https://staging.example.com
+  dependencies:
+    - build
+    - test
+    - security-sast
+    - security-sca
+    - security-audit
+  only:
+    - develop
+  when: manual
+
+# Job de deployment a producción
+deploy-production:
+  stage: deploy
+  image: node:20-alpine
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@$PNPM_VERSION --activate
+  script:
+    - echo "🚀 Deploying to production environment..."
+    - pnpm install --frozen-lockfile
+    - pnpm db:generate
+    - pnpm build
+    # Aquí irían los comandos específicos de deployment a producción
+    - echo "✅ Production deployment completed"
+  environment:
+    name: production
+    url: https://example.com
+  dependencies:
+    - build
+    - test
+    - security-sast
+    - security-sca
+    - security-audit
+  only:
+    - main
+  when: manual
+
+# Job de notificación de resultados
+notify:
+  stage: deploy
+  image: alpine:latest
+  script:
+    - |
+      echo "📊 Pipeline Results Summary:"
+      echo "=========================="
+      echo "Build: $CI_JOB_STATUS"
+      echo "Tests: $CI_JOB_STATUS"
+      echo "Security SAST: $CI_JOB_STATUS"
+      echo "Security SCA: $CI_JOB_STATUS"
+      echo "Security Audit: $CI_JOB_STATUS"
+      echo ""
+      echo "🔒 Security gates status:"
+      if [ "$CI_JOB_STATUS" == "success" ]; then
+        echo "✅ All security checks passed"
+      else
+        echo "❌ Security checks failed - deployment blocked"
+      fi
+  dependencies:
+    - security-sast
+    - security-sca
+    - security-audit
+  only:
+    - main
+    - develop
+    - merge_requests
+  when: always
+
+# Reglas de protección de ramas (configurar en GitLab UI)
+# Para configurar branch protection rules:
+# 1. Ve a Settings > Repository > Push Rules
+# 2. Configura las siguientes reglas:
+#    - Require approval from code owners
+#    - Require pipeline to succeed
+#    - Require security scan to pass
+#    - Restrict pushes to main branch

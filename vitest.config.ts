@@ -1,28 +1,51 @@
-import { defineConfig } from 'vitest/config'
-import path from 'path'
+import { defineConfig } from 'vitest/config';
+import { resolve } from 'path';
 
 export default defineConfig({
   test: {
-    environment: 'node',
     globals: true,
+    environment: 'node',
     setupFiles: ['./tests/setup.ts'],
     testTimeout: 10000,
     hookTimeout: 10000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
+      reportsDirectory: './coverage',
+      include: [
+        'lib/**/*.ts',
+        'app/api/**/*.ts'
+      ],
       exclude: [
-        'node_modules/',
-        'tests/',
+        'node_modules/**',
+        'tests/**',
+        'coverage/**',
+        '**/*.test.ts',
+        '**/*.spec.ts',
         '**/*.d.ts',
-        '**/*.config.*',
-        'prisma/'
-      ]
-    }
+        '**/types.ts',
+        '**/index.ts'
+      ],
+      thresholds: {
+        lines: 80,
+        branches: 80,
+        functions: 80,
+        statements: 80
+      }
+    },
+    include: [
+      'tests/**/*.test.ts'
+    ],
+    exclude: [
+      'node_modules/**',
+      'coverage/**'
+    ]
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './')
+      '@': resolve(__dirname, './'),
+      '@lib': resolve(__dirname, './lib'),
+      '@app': resolve(__dirname, './app')
     }
   }
-})
+});

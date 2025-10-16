@@ -341,6 +341,77 @@ npx prisma db push
 npx prisma studio
 ```
 
+## 🛠️ Comandos Locales Disponibles
+
+### Análisis de Seguridad
+
+```bash
+# Análisis de seguridad completo
+pnpm sec:check
+
+# Análisis individual
+pnpm sec:sast    # SAST con Semgrep
+pnpm sec:sca     # SCA con Trivy + pnpm audit
+pnpm sec:dast    # DAST con ZAP
+
+# Tests con cobertura
+pnpm test:ci
+
+# Arreglar vulnerabilidades
+pnpm sec:audit-fix
+```
+
+### Comandos de Desarrollo
+
+```bash
+# Linting y corrección automática
+pnpm lint:fix
+
+# Type checking
+pnpm typecheck
+
+# Build de producción
+pnpm build
+
+# Tests con cobertura y umbrales
+pnpm test:coverage
+
+# Tests en modo watch
+pnpm test:watch
+```
+
+### Comandos de Base de Datos
+
+```bash
+# Generar cliente Prisma
+pnpm db:generate
+
+# Aplicar cambios de esquema
+pnpm db:push
+
+# Abrir Prisma Studio
+pnpm db:studio
+
+# Seed de datos
+pnpm db:seed
+```
+
+### Comandos de Docker
+
+```bash
+# Levantar servicios
+pnpm docker:up
+
+# Detener servicios
+pnpm docker:down
+
+# Ver logs
+pnpm docker:logs
+
+# Reiniciar servicios
+pnpm docker:restart
+```
+
 ## 🔧 Troubleshooting
 
 ### Common Issues

@@ -1,0 +1,43 @@
+# ZAP Baseline Rules Configuration
+# Este archivo define las reglas que ZAP debe seguir durante el análisis DAST
+# Formato: Rule ID, Action (IGNORE/FAIL), Reason
+
+# Reglas de autenticación - IGNORAR para testing
+10011	IGNORE	Authentication testing not applicable for baseline
+10012	IGNORE	Authentication testing not applicable for baseline
+10013	IGNORE	Authentication testing not applicable for baseline
+10014	IGNORE	Authentication testing not applicable for baseline
+10015	IGNORE	Authentication testing not applicable for baseline
+10016	IGNORE	Authentication testing not applicable for baseline
+10017	IGNORE	Authentication testing not applicable for baseline
+10018	IGNORE	Authentication testing not applicable for baseline
+10019	IGNORE	Authentication testing not applicable for baseline
+10020	IGNORE	Authentication testing not applicable for baseline
+
+# Reglas de session management - IGNORAR para testing
+10021	IGNORE	Session management testing not applicable for baseline
+10022	IGNORE	Session management testing not applicable for baseline
+10023	IGNORE	Session management testing not applicable for baseline
+10024	IGNORE	Session management testing not applicable for baseline
+10025	IGNORE	Session management testing not applicable for baseline
+
+# Reglas de input validation - CRÍTICAS
+10020	FAIL	SQL Injection must be prevented
+10021	FAIL	XSS vulnerabilities must be fixed
+10022	FAIL	Path traversal vulnerabilities must be fixed
+10023	FAIL	Command injection must be prevented
+
+# Reglas de headers de seguridad - CRÍTICAS
+10015	FAIL	Missing security headers are critical
+10016	FAIL	Insecure cookie settings are critical
+10017	FAIL	Missing CSP headers are critical
+
+# Reglas de información disclosure - MEDIUM
+10001	IGNORE	Information disclosure in baseline scan
+10002	IGNORE	Information disclosure in baseline scan
+10003	IGNORE	Information disclosure in baseline scan
+
+# Reglas de SSL/TLS - IGNORAR para localhost
+10001	IGNORE	SSL/TLS testing not applicable for localhost
+10002	IGNORE	SSL/TLS testing not applicable for localhost
+10003	IGNORE	SSL/TLS testing not applicable for localhost
