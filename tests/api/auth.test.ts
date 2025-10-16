@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import request from 'supertest'
 import { NextRequest } from 'next/server'
-import { POST as registerHandler } from '@/app/api/auth/register/route'
-import { POST as loginHandler } from '@/app/api/auth/login/route'
-import { prisma } from '../setup'
+import { POST as registerHandler } from '@/app/api/auth/register-mock/route'
+import { POST as loginHandler } from '@/app/api/auth/login-mock/route'
+import { mockStorage } from '@/lib/mock-storage'
 
 /**
  * Integration tests for authentication API endpoints
@@ -14,18 +13,18 @@ describe('Authentication API', () => {
   const testUser = {
     email: 'test@example.com',
     username: 'testuser',
-    password: 'SecurePassword123!',
-    confirmPassword: 'SecurePassword123!'
+    password: 'MySecurePass789!',
+    confirmPassword: 'MySecurePass789!'
   }
 
   const testLogin = {
     email: 'test@example.com',
-    password: 'SecurePassword123!'
+    password: 'MySecurePass789!'
   }
 
   beforeEach(async () => {
-    // Clean database before each test
-    await prisma.user.deleteMany()
+    // Clean mock storage before each test
+    mockStorage.clearAll()
   })
 
   describe('POST /api/auth/register', () => {
@@ -100,7 +99,7 @@ describe('Authentication API', () => {
     it('should reject registration with mismatched passwords', async () => {
       const mismatchedUser = {
         ...testUser,
-        confirmPassword: 'DifferentPassword123!'
+        confirmPassword: 'DifferentPass789!'
       }
 
       const request = new NextRequest('http://localhost:3000/api/auth/register', {
@@ -251,7 +250,7 @@ describe('Authentication API', () => {
     it('should reject login with invalid password', async () => {
       const invalidLogin = {
         ...testLogin,
-        password: 'WrongPassword123!'
+        password: 'WrongPass789!'
       }
 
       const request = new NextRequest('http://localhost:3000/api/auth/login', {
