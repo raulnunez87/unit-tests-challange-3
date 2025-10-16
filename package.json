@@ -1,0 +1,40 @@
+{
+  "name": "secure-auth-module",
+  "version": "1.0.0",
+  "description": "Secure authentication module with Next.js, Prisma, and MongoDB",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "@prisma/client": "^5.0.0",
+    "prisma": "^5.0.0",
+    "zod": "^3.22.0",
+    "bcrypt": "^5.1.0",
+    "jose": "^5.0.0",
+    "lru-cache": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "@types/bcrypt": "^5.0.0",
+    "@types/supertest": "^6.0.0",
+    "typescript": "^5.0.0",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "^14.0.0",
+    "vitest": "^1.0.0",
+    "supertest": "^6.3.0",
+    "@vitest/coverage-v8": "^1.0.0"
+  }
+}

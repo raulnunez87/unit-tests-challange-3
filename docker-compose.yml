@@ -1,0 +1,20 @@
+services:
+  # MongoDB database
+  mongodb:
+    image: mongo:7
+    container_name: auth-module-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    command: mongod --replSet rs0 --auth
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: auth-module
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+
+volumes:
+  mongodb_data:
+
