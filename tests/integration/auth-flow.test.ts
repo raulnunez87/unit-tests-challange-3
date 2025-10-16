@@ -371,7 +371,7 @@ describe('Authentication Flow Integration Tests', () => {
         username: `concurrentuser${index}`,
         password: 'SecurePass789!',
         confirmPassword: 'SecurePass789!'
-      });
+      }));
 
       const startTime = Date.now();
       
@@ -422,6 +422,7 @@ describe('Authentication Flow Integration Tests', () => {
           email: userData.email,
           password: userData.password
         })
+      );
 
       const responses = await Promise.all(promises);
       
@@ -516,6 +517,7 @@ describe('Authentication Flow Integration Tests', () => {
           password: 'SecurePass789!',
           confirmPassword: 'SecurePass789!'
         })
+      );
 
       const responses = await Promise.all(promises);
       

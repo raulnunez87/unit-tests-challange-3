@@ -3,7 +3,7 @@ import { validateInput, loginSchema } from '@/lib/schemas'
 import { verifyPassword } from '@/lib/crypto'
 import { createToken } from '@/lib/auth'
 import { mockStorage } from '@/lib/mock-storage'
-import { checkRateLimit, getClientIP, recordFailedAttempt } from '@/lib/rate-limit'
+import { checkFailedAttemptRateLimit, getClientIP, recordFailedAttempt } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,12 +32,13 @@ export async function POST(request: NextRequest) {
     if (!user || !isPasswordValid) {
       console.log('Login failed: invalid credentials')
       
-      // Record failed attempt for rate limiting first
+      // Record failed attempt for rate limiting
       recordFailedAttempt(clientIP)
       
-      // Then check rate limiting for failed attempts
-      const rateLimitResult = checkRateLimit(clientIP)
+      // Check rate limiting for failed attempts
+      const rateLimitResult = checkFailedAttemptRateLimit(clientIP)
       
+      // Only apply rate limiting if we've exceeded the limit
       if (!rateLimitResult.allowed) {
         return NextResponse.json(
           {

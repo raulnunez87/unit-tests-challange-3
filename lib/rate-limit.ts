@@ -115,7 +115,7 @@ export function checkRateLimit(ip: string): RateLimitResult {
     }
 
     // Check if limit exceeded
-    if (updatedData.attempts >= RATE_LIMIT_MAX_ATTEMPTS) {
+    if (updatedData.attempts > RATE_LIMIT_MAX_ATTEMPTS) {
       // Block IP for specified duration
       updatedData.blockedUntil = now + RATE_LIMIT_BLOCK_DURATION_MS
       rateLimitCache.set(ip, updatedData)
@@ -185,6 +185,78 @@ export function recordFailedAttempt(ip: string): void {
   } catch (error) {
     // Silently fail to prevent logging errors from affecting auth flow
     console.error('Failed attempt recording error:', error instanceof Error ? error.message : 'Unknown error')
+  }
+}
+
+/**
+ * Checks rate limiting for failed attempts without incrementing
+ * Used to check if an IP should be rate limited for failed attempts
+ * 
+ * @param ip - Client IP address
+ * @returns Rate limit result with status and metadata
+ */
+export function checkFailedAttemptRateLimit(ip: string): RateLimitResult {
+  try {
+    // Validate IP address
+    if (!ip || typeof ip !== 'string') {
+      throw new Error('Invalid IP address')
+    }
+
+    const now = Date.now()
+    const data = rateLimitCache.get(ip)
+
+    // If no previous data, allow the request
+    if (!data) {
+      return {
+        allowed: true,
+        remaining: RATE_LIMIT_MAX_ATTEMPTS,
+        resetTime: now + RATE_LIMIT_WINDOW_MS
+      }
+    }
+
+    // Check if IP is currently blocked
+    if (data.blockedUntil && now < data.blockedUntil) {
+      return {
+        allowed: false,
+        remaining: 0,
+        resetTime: data.blockedUntil,
+        retryAfter: Math.ceil((data.blockedUntil - now) / 1000)
+      }
+    }
+
+    // Check if window has expired
+    if (now - data.firstAttempt > RATE_LIMIT_WINDOW_MS) {
+      return {
+        allowed: true,
+        remaining: RATE_LIMIT_MAX_ATTEMPTS,
+        resetTime: now + RATE_LIMIT_WINDOW_MS
+      }
+    }
+
+    // Check if limit exceeded (without incrementing)
+    if (data.attempts >= RATE_LIMIT_MAX_ATTEMPTS) {
+      return {
+        allowed: false,
+        remaining: 0,
+        resetTime: data.firstAttempt + RATE_LIMIT_WINDOW_MS,
+        retryAfter: Math.ceil((data.firstAttempt + RATE_LIMIT_WINDOW_MS - now) / 1000)
+      }
+    }
+
+    return {
+      allowed: true,
+      remaining: RATE_LIMIT_MAX_ATTEMPTS - data.attempts,
+      resetTime: data.firstAttempt + RATE_LIMIT_WINDOW_MS
+    }
+  } catch (error) {
+    console.error('Rate limit check error:', error instanceof Error ? error.message : 'Unknown error')
+    
+    // Fail open - allow request if rate limiting fails
+    return {
+      allowed: true,
+      remaining: RATE_LIMIT_MAX_ATTEMPTS,
+      resetTime: Date.now() + RATE_LIMIT_WINDOW_MS
+    }
   }
 }
 
