@@ -122,7 +122,7 @@ jobs:
           fi
 
       - name: Upload comprehensive audit results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: audit-comprehensive
@@ -283,7 +283,7 @@ jobs:
           cmd_options: '-a'
 
       - name: Upload ZAP results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: zap-dast-results
