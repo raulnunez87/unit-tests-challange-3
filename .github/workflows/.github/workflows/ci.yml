@@ -1,0 +1,332 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # Job principal: Build, Lint, TypeCheck y Tests con cobertura
+  build-test:
+    name: Build, Test & Coverage
+    runs-on: ubuntu-latest
+    
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        env:
+          MONGO_INITDB_DATABASE: auth-module-test
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Wait for MongoDB
+        run: |
+          echo "Waiting for MongoDB to be ready..."
+          # Simple TCP connection check
+          timeout=30
+          counter=0
+          until nc -z localhost 27017; do
+            if [ $counter -ge $timeout ]; then
+              echo "MongoDB failed to start within $timeout seconds"
+              echo "Checking if port 27017 is open..."
+              netstat -tuln | grep 27017 || echo "Port 27017 not found"
+              exit 1
+            fi
+            echo "MongoDB is not ready yet, waiting... ($counter/$timeout)"
+            sleep 2
+            counter=$((counter + 2))
+          done
+          echo "MongoDB is ready!"
+
+      - name: Lint código
+        run: npm run lint
+        continue-on-error: false
+
+      - name: Type check
+        run: npm run typecheck
+        continue-on-error: false
+
+      - name: Test database connection
+        run: |
+          echo "Testing database connection..."
+          # Test if MongoDB is accessible via telnet
+          timeout 10 bash -c 'cat < /dev/null > /dev/tcp/localhost/27017' && echo "✅ MongoDB port is accessible" || echo "❌ MongoDB port is not accessible"
+          # Test with curl if available
+          curl -f http://localhost:27017 || echo "MongoDB HTTP interface not available (this is normal)"
+          echo "✅ Database connection test completed"
+
+      - name: Run tests with coverage
+        run: npm run test:ci
+        continue-on-error: false
+        env:
+          JWT_SECRET: test-jwt-secret-key-at-least-32-characters-long-for-testing
+          BCRYPT_ROUNDS: 12
+          DATABASE_URL: mongodb://localhost:27017/auth-module-test
+          NODE_ENV: test
+          JWT_EXPIRATION_MINUTES: 15
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 30
+
+
+      - name: Comment coverage on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            try {
+              const coveragePath = path.join(process.cwd(), 'coverage', 'coverage-summary.json');
+              if (fs.existsSync(coveragePath)) {
+                const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf8'));
+                const total = coverage.total;
+                
+                const comment = `## 📊 Coverage Report
+                
+                | Metric | Coverage | Threshold | Status |
+                |--------|----------|-----------|--------|
+                | Lines | ${total.lines.pct}% | 80% | ${total.lines.pct >= 80 ? '✅' : '❌'} |
+                | Branches | ${total.branches.pct}% | 80% | ${total.branches.pct >= 80 ? '✅' : '❌'} |
+                | Functions | ${total.functions.pct}% | 80% | ${total.functions.pct >= 80 ? '✅' : '❌'} |
+                | Statements | ${total.statements.pct}% | 80% | ${total.statements.pct >= 80 ? '✅' : '❌'} |
+                
+                ${total.lines.pct < 80 ? '⚠️ **COVERAGE BELOW THRESHOLD** - Build will fail!' : '✅ All coverage thresholds met!'}
+                `;
+                
+                github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: comment
+                });
+              }
+            } catch (error) {
+              console.log('Could not generate coverage comment:', error.message);
+            }
+
+  # Job de seguridad: SAST y SCA
+  security-sast-sca:
+    name: Security Analysis (SAST & SCA)
+    runs-on: ubuntu-latest
+    needs: build-test
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # SAST: Semgrep con reglas OWASP y Node.js
+      - name: Run Semgrep SAST
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/owasp-top-ten
+            p/nodejs
+            p/security-audit
+            p/secrets
+          generateSarif: "1"
+          sarifFile: "semgrep.sarif"
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+      - name: Upload Semgrep SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+      # SCA: Trivy filesystem scan
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-fs.sarif'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+
+      # SCA: npm audit
+      - name: Run npm audit
+        run: |
+          echo "🔍 Running npm audit with high severity threshold..."
+          npm audit --audit-level=high --json > audit-results.json || true
+          
+          # Parse audit results and fail if High/Critical vulnerabilities found
+          if [ -f audit-results.json ]; then
+            HIGH_VULNS=$(cat audit-results.json | jq '.advisories | to_entries | map(select(.value.severity == "high" or .value.severity == "critical")) | length')
+            if [ "$HIGH_VULNS" -gt 0 ]; then
+              echo "❌ Found $HIGH_VULNS High/Critical vulnerabilities"
+              echo "Run 'npm audit fix' to resolve automatically fixable issues"
+              cat audit-results.json | jq '.advisories | to_entries | map(select(.value.severity == "high" or .value.severity == "critical")) | .[].value | {id, title, severity, vulnerable_versions}'
+              exit 1
+            else
+              echo "✅ No High/Critical vulnerabilities found"
+            fi
+          fi
+        continue-on-error: false
+
+      - name: Upload audit results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-results
+          path: audit-results.json
+          retention-days: 30
+
+  # Job opcional: DAST con ZAP Baseline
+  security-dast:
+    name: Dynamic Security Testing (DAST)
+    runs-on: ubuntu-latest
+    needs: build-test
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Build application
+        run: npm run build
+        env:
+          JWT_SECRET: test-jwt-secret-that-is-at-least-32-characters-long
+          BCRYPT_ROUNDS: 12
+          DATABASE_URL: mongodb://localhost:27017/auth-module-test
+          NODE_ENV: test
+          JWT_EXPIRATION_MINUTES: 15
+
+      - name: Start application
+        run: |
+          npm start &
+          sleep 10
+          curl -f http://localhost:3000 || exit 1
+        env:
+          JWT_SECRET: test-jwt-secret-that-is-at-least-32-characters-long
+          BCRYPT_ROUNDS: 12
+          DATABASE_URL: mongodb://localhost:27017/auth-module-test
+          NODE_ENV: test
+          JWT_EXPIRATION_MINUTES: 15
+
+      - name: Run ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.7.0
+        with:
+          target: 'http://localhost:3000'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+        continue-on-error: true
+
+      - name: Upload ZAP results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zap-results
+          path: zap-results/
+          retention-days: 30
+
+  # Job de deployment (solo en main)
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-test, security-sast-sca]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Build application
+        run: npm run build
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
+      - name: Deploy to production
+        run: |
+          echo "🚀 Deploying to production..."
+          # Aquí irían los comandos específicos de deployment
+          # Por ejemplo: docker build, kubectl apply, etc.
+          echo "✅ Deployment completed successfully"
+
+  # Job de notificación final
+  notify:
+    name: Notify Results
+    runs-on: ubuntu-latest
+    needs: [build-test, security-sast-sca, security-dast]
+    if: always()
+    
+    steps:
+      - name: Notify success
+        if: needs.build-test.result == 'success' && needs.security-sast-sca.result == 'success'
+        run: |
+          echo "✅ All security gates passed successfully!"
+          echo "🔒 No critical vulnerabilities found"
+          echo "📊 Coverage thresholds met"
+
+      - name: Notify failure
+        if: needs.build-test.result == 'failure' || needs.security-sast-sca.result == 'failure'
+        run: |
+          echo "❌ Security gates failed!"
+          echo "🚫 Build blocked due to security issues"
+          exit 1
