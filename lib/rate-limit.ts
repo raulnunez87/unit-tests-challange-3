@@ -234,7 +234,7 @@ export function checkFailedAttemptRateLimit(ip: string): RateLimitResult {
     }
 
     // Check if limit exceeded (without incrementing)
-    if (data.attempts > RATE_LIMIT_MAX_ATTEMPTS) {
+    if (data.attempts >= RATE_LIMIT_MAX_ATTEMPTS) {
       return {
         allowed: false,
         remaining: 0,
