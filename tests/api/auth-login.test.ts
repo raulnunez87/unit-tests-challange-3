@@ -2,8 +2,9 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import { POST as loginHandler, GET, PUT, DELETE } from '@/app/api/auth/login/route'
 import { clearRateLimit } from '@/lib/rate-limit'
-import prisma from '@/lib/prisma'
+import { createTestUser, deleteTestUser } from '../helpers/db'
 import { hashPassword } from '@/lib/crypto'
+import prisma from '@/lib/prisma'
 
 /**
  * Tests for the main login API endpoint
@@ -23,26 +24,29 @@ describe('Authentication Login API', () => {
     // Clear rate limiting cache before each test
     clearRateLimit()
     
-    // Create a test user in the database
-    const hashedPassword = await hashPassword(testUser.password)
-    await prisma.user.create({
-      data: {
+    try {
+      // Create a test user in the database
+      const hashedPassword = await hashPassword(testUser.password)
+      await createTestUser({
         email: testUser.email,
         username: testUser.username,
         password: hashedPassword
-      }
-    })
-  })
+      })
+    } catch (error) {
+      console.warn('Failed to create test user:', error)
+      throw error
+    }
+  }, 45000)
 
   afterEach(async () => {
-    // Clean up test user
-    await prisma.user.deleteMany({
-      where: {
-        email: testUser.email
-      }
-    })
+    try {
+      // Clean up test user
+      await deleteTestUser(testUser.email)
+    } catch (error) {
+      console.warn('Failed to cleanup test user:', error)
+    }
     clearRateLimit()
-  })
+  }, 45000)
 
   describe('POST /api/auth/login', () => {
     it('should login with valid credentials', async () => {

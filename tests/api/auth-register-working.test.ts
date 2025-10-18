@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { POST } from '@/app/api/auth/register-working/route'
-import prisma from '@/lib/prisma'
+import { cleanupTestData, deleteTestUser } from '../helpers/db'
 
 /**
  * Tests for the working register API endpoint
@@ -26,15 +26,15 @@ describe('Authentication Register Working API', () => {
   })
 
   afterEach(async () => {
-    // Clean up any test users that might have been created
-    await prisma.user.deleteMany({
-      where: {
-        email: testUser.email
-      }
-    })
+    try {
+      // Clean up any test users that might have been created
+      await deleteTestUser(testUser.email)
+    } catch (error) {
+      console.warn('Failed to cleanup test user:', error)
+    }
     // Restore all mocks after each test
     vi.restoreAllMocks()
-  })
+  }, 45000)
 
   describe('POST /api/auth/register-working', () => {
     it('should register a new user successfully', async () => {

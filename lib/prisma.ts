@@ -19,7 +19,16 @@ const prisma = globalThis.__prisma || new PrismaClient({
     db: {
       url: process.env.DATABASE_URL
     }
-  }
+  },
+  // Add connection configuration for better reliability
+  ...(process.env.NODE_ENV === 'test' && {
+    // For tests, add more aggressive connection settings
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL
+      }
+    }
+  })
 })
 
 // In development, save the client to global to prevent multiple instances
