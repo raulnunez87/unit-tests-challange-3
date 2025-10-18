@@ -2,8 +2,8 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Install MongoDB shell for health checks
-RUN apk add --no-cache mongodb-tools
+# Install MongoDB shell for health checks and OpenSSL for Prisma
+RUN apk add --no-cache mongodb-tools openssl1.1-compat
 
 # Copy package files
 COPY package*.json ./
@@ -17,15 +17,8 @@ COPY . .
 # Generate Prisma client
 RUN npx prisma generate
 
-# Copy entrypoint script
-COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
 # Expose port
 EXPOSE 3000
-
-# Use entrypoint script
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
 # Start the application
 CMD ["npm", "run", "dev"]
