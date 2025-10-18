@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest",
+    "test:with-db": "./run-tests.sh",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
     "test:coverage:threshold": "vitest --coverage --coverage.thresholds.lines=80 --coverage.thresholds.branches=80",

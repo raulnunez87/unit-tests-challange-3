@@ -6,7 +6,8 @@
 // Mock environment variables for testing
 process.env.JWT_SECRET = 'test-jwt-secret-key-at-least-32-characters-long-for-testing'
 process.env.BCRYPT_ROUNDS = '12' // Use secure rounds even for tests
-process.env.DATABASE_URL = 'mongodb://localhost:27017/auth-module-test'
+// Use MongoDB with replica set for tests (required by Prisma)
+process.env.DATABASE_URL = 'mongodb://localhost:27017/auth-module-test?replicaSet=rs0'
 process.env.NODE_ENV = 'test'
 process.env.JWT_EXPIRATION_MINUTES = '15'
 
