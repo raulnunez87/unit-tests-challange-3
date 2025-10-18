@@ -15,6 +15,13 @@ jobs:
     name: Build, Test & Coverage
     runs-on: ubuntu-latest
     
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        env:
+          MONGO_INITDB_DATABASE: auth-module-test
     
     steps:
       - name: Checkout código
@@ -28,12 +35,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Start MongoDB
-        run: |
-          echo "Starting MongoDB container..."
-          docker run -d --name mongodb-test -p 27017:27017 mongo:7.0
-          echo "MongoDB container started"
 
       - name: Wait for MongoDB
         run: |
@@ -62,6 +63,27 @@ jobs:
         run: npm run typecheck
         continue-on-error: false
 
+      - name: Test database connection
+        run: |
+          echo "Testing database connection with Node.js..."
+          node -e "
+            const { MongoClient } = require('mongodb');
+            const client = new MongoClient('mongodb://localhost:27017/auth-module-test');
+            client.connect()
+              .then(() => {
+                console.log('✅ Database connection successful');
+                return client.db('auth-module-test').admin().ping();
+              })
+              .then(() => {
+                console.log('✅ Database ping successful');
+                client.close();
+              })
+              .catch(err => {
+                console.error('❌ Database connection failed:', err.message);
+                process.exit(1);
+              });
+          "
+
       - name: Run tests with coverage
         run: npm run test:ci
         continue-on-error: false
@@ -79,12 +101,6 @@ jobs:
           path: coverage/
           retention-days: 30
 
-      - name: Cleanup MongoDB
-        if: always()
-        run: |
-          echo "Cleaning up MongoDB container..."
-          docker stop mongodb-test || true
-          docker rm mongodb-test || true
 
       - name: Comment coverage on PR
         if: github.event_name == 'pull_request'
