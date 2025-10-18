@@ -1,0 +1,175 @@
+# 🔒 Security-First Development Rules
+
+## 🛡️ Security Guidelines
+
+### Authentication & Authorization
+- Always validate user input with Zod schemas before processing
+- Use bcrypt with minimum 12 rounds for password hashing
+- Implement rate limiting on all authentication endpoints
+- Use JWT tokens with short expiration times (≤15 minutes)
+- Never log sensitive information (passwords, tokens, PII)
+- Implement consistent error responses to prevent user enumeration
+
+### Input Validation
+- Validate all inputs using strict Zod schemas
+- Sanitize user input to prevent injection attacks
+- Use parameterized queries for database operations
+- Implement proper email format validation
+- Enforce strong password policies (12+ chars, mixed case, numbers, symbols)
+
+### Data Protection
+- Never store plaintext passwords
+- Use environment variables for secrets (never hardcode)
+- Implement proper CORS policies
+- Use HTTPS in production environments
+- Encrypt sensitive data at rest
+
+### Error Handling
+- Never expose internal system information in error messages
+- Use generic error responses for authentication failures
+- Log security events for monitoring
+- Implement proper HTTP status codes
+- Don't reveal whether users exist in the system
+
+## 🚫 Security Anti-Patterns
+
+### NEVER DO:
+- Hardcode secrets or API keys in code
+- Use weak password hashing (MD5, SHA1, etc.)
+- Expose database connection strings
+- Log sensitive user data
+- Use eval() or similar dangerous functions
+- Trust user input without validation
+- Return detailed error messages to clients
+- Use deprecated or vulnerable dependencies
+
+### AVOID:
+- Storing JWT secrets in client-side code
+- Using synchronous password hashing
+- Exposing internal file paths
+- Allowing unlimited login attempts
+- Using default or weak encryption keys
+
+## 🔍 Code Quality Rules
+
+### Testing Requirements
+- Write security-focused unit tests
+- Test authentication flows thoroughly
+- Test rate limiting functionality
+- Test input validation edge cases
+- Test error handling scenarios
+- Maintain ≥80% test coverage
+
+### Code Standards
+- Use TypeScript strict mode
+- Implement proper error boundaries
+- Use async/await for all async operations
+- Implement proper logging levels
+- Use consistent naming conventions
+- Document security considerations
+
+## 🚨 Security Monitoring
+
+### Required Checks
+- Run security audits before commits
+- Check for vulnerable dependencies
+- Validate environment variables
+- Test authentication flows
+- Verify rate limiting works
+- Check for information leakage
+
+### Alert Conditions
+- Failed authentication attempts > threshold
+- Rate limit violations
+- Invalid token usage
+- Suspicious input patterns
+- Security test failures
+
+## 📋 Pre-commit Checklist
+
+Before committing code, verify:
+- [ ] No hardcoded secrets
+- [ ] Input validation implemented
+- [ ] Error handling is secure
+- [ ] Tests pass with good coverage
+- [ ] Security audit passes
+- [ ] Rate limiting works
+- [ ] JWT tokens expire properly
+- [ ] Password hashing is secure
+
+## 🔧 Development Commands
+
+### Security Testing
+```bash
+# Run security tests
+pnpm test:security
+
+# Check for vulnerabilities
+pnpm audit
+
+# Run SAST analysis
+pnpm sec:sast
+
+# Full security check
+pnpm sec:check
+```
+
+### Code Quality
+```bash
+# Run all tests with coverage
+pnpm test:ci
+
+# Lint and fix
+pnpm lint:fix
+
+# Type check
+pnpm typecheck
+```
+
+## 🎯 Project-Specific Rules
+
+### Authentication Module
+- Use `lib/auth.ts` for authentication logic
+- Implement proper JWT handling in `lib/crypto.ts`
+- Use rate limiting from `lib/rate-limit.ts`
+- Validate schemas from `lib/schemas.ts`
+
+### API Routes
+- All auth routes must implement rate limiting
+- Use proper HTTP status codes
+- Implement consistent error responses
+- Never expose internal errors
+
+### Database Operations
+- Use Prisma for all database operations
+- Implement proper connection handling
+- Use transactions for critical operations
+- Validate data before database writes
+
+## 🚀 Deployment Security
+
+### Environment Variables
+- Use strong JWT secrets (32+ characters)
+- Set appropriate bcrypt rounds (12-14)
+- Use secure database connections
+- Enable HTTPS only in production
+
+### Production Checklist
+- [ ] All secrets in environment variables
+- [ ] HTTPS enforced
+- [ ] Security headers configured
+- [ ] Rate limiting active
+- [ ] Monitoring enabled
+- [ ] Logging configured
+- [ ] Backup encryption enabled
+
+## 📚 Security Resources
+
+- [OWASP ASVS](https://owasp.org/www-project-application-security-verification-standard/)
+- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
+- [JWT Security Best Practices](https://tools.ietf.org/html/rfc8725)
+- [Next.js Security](https://nextjs.org/docs/advanced-features/security-headers)
+
+---
+
+**⚠️ CRITICAL**: These rules are enforced by the CI/CD pipeline. Code that violates security rules will be rejected automatically.

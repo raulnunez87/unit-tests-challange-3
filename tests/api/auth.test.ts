@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
-import { POST as registerHandler } from '@/app/api/auth/register-mock/route'
-import { POST as loginHandler } from '@/app/api/auth/login-mock/route'
+import { POST as registerHandler } from '@/app/api/auth/register/route'
+import { POST as loginHandler } from '@/app/api/auth/login/route'
 import { mockStorage } from '@/lib/mock-storage'
 
 /**

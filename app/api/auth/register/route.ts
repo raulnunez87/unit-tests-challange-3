@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateInput, registerSchema } from '@/lib/schemas'
 import { hashPassword } from '@/lib/crypto'
 import { createToken } from '@/lib/auth'
-import { checkRateLimit, getClientIP, recordFailedAttempt } from '@/lib/rate-limit'
+import { checkRateLimit, getClientIP, recordFailedAttempt, checkFailedAttemptRateLimit } from '@/lib/rate-limit'
 import prisma from '@/lib/prisma'
 
 /**
@@ -21,27 +21,6 @@ export async function POST(request: NextRequest) {
   try {
     // Get client IP for rate limiting
     const clientIP = getClientIP(request.headers)
-    
-    // Check rate limit before processing
-    const rateLimitResult = checkRateLimit(clientIP)
-    if (!rateLimitResult.allowed) {
-      return NextResponse.json(
-        {
-          error: 'Too Many Requests',
-          message: 'Too many registration attempts. Please try again later.',
-          status: 429
-        },
-        { 
-          status: 429,
-          headers: {
-            'Retry-After': rateLimitResult.retryAfter?.toString() || '3600',
-            'X-RateLimit-Limit': '5',
-            'X-RateLimit-Remaining': '0',
-            'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
-          }
-        }
-      )
-    }
 
     // Parse and validate request body
     const body = await request.json()
@@ -57,8 +36,31 @@ export async function POST(request: NextRequest) {
       // Record failed attempt for security monitoring
       recordFailedAttempt(clientIP)
       
+      // Check if we should rate limit after failed attempts
+      const rateLimitResult = checkFailedAttemptRateLimit(clientIP)
+      if (!rateLimitResult.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Too Many Requests',
+            message: 'Too many registration attempts. Please try again later.',
+            status: 429
+          },
+          { 
+            status: 429,
+            headers: {
+              'Retry-After': rateLimitResult.retryAfter?.toString() || '3600',
+              'X-RateLimit-Limit': '5',
+              'X-RateLimit-Remaining': '0',
+              'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
+            }
+          }
+        )
+      }
+      
       return NextResponse.json(
         {
+          success: false,
           error: 'Conflict',
           message: 'An account with this email already exists.',
           status: 409
@@ -76,8 +78,31 @@ export async function POST(request: NextRequest) {
       // Record failed attempt for security monitoring
       recordFailedAttempt(clientIP)
       
+      // Check if we should rate limit after failed attempts
+      const rateLimitResult = checkFailedAttemptRateLimit(clientIP)
+      if (!rateLimitResult.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Too Many Requests',
+            message: 'Too many registration attempts. Please try again later.',
+            status: 429
+          },
+          { 
+            status: 429,
+            headers: {
+              'Retry-After': rateLimitResult.retryAfter?.toString() || '3600',
+              'X-RateLimit-Limit': '5',
+              'X-RateLimit-Remaining': '0',
+              'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
+            }
+          }
+        )
+      }
+      
       return NextResponse.json(
         {
+          success: false,
           error: 'Conflict',
           message: 'Username is already taken.',
           status: 409
@@ -140,6 +165,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error && error.message.includes('Validation failed')) {
       return NextResponse.json(
         {
+          success: false,
           error: 'Bad Request',
           message: error.message,
           status: 400
@@ -152,6 +178,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error && error.message.includes('Unique constraint')) {
       return NextResponse.json(
         {
+          success: false,
           error: 'Conflict',
           message: 'An account with this email or username already exists.',
           status: 409
@@ -163,6 +190,7 @@ export async function POST(request: NextRequest) {
     // Generic error response
     return NextResponse.json(
       {
+        success: false,
         error: 'Internal Server Error',
         message: 'An error occurred during registration. Please try again.',
         status: 500

@@ -32,16 +32,17 @@ export async function POST(request: NextRequest) {
     if (!user || !isPasswordValid) {
       console.log('Login failed: invalid credentials')
       
+      // Check rate limiting for failed attempts BEFORE recording
+      const rateLimitResult = checkFailedAttemptRateLimit(clientIP)
+      
       // Record failed attempt for rate limiting
       recordFailedAttempt(clientIP)
-      
-      // Check rate limiting for failed attempts
-      const rateLimitResult = checkFailedAttemptRateLimit(clientIP)
       
       // Only apply rate limiting if we've exceeded the limit
       if (!rateLimitResult.allowed) {
         return NextResponse.json(
           {
+            success: false,
             error: 'Too Many Requests',
             message: 'Rate limit exceeded. Please try again later.',
             status: 429,
@@ -61,7 +62,8 @@ export async function POST(request: NextRequest) {
       
       return NextResponse.json(
         {
-          error: 'Unauthorized',
+          success: false,
+          error: 'Invalid email or password.',
           message: 'Invalid email or password.',
           status: 401
         },
@@ -100,6 +102,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error && error.message.includes('Validation failed')) {
       return NextResponse.json(
         {
+          success: false,
           error: 'Bad Request',
           message: error.message,
           status: 400
@@ -111,6 +114,7 @@ export async function POST(request: NextRequest) {
     // Generic error response
     return NextResponse.json(
       {
+        success: false,
         error: 'Internal Server Error',
         message: 'An error occurred during login. Please try again.',
         status: 500,

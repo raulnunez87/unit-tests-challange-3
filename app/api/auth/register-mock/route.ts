@@ -24,14 +24,19 @@ export async function POST(request: NextRequest) {
     console.log('Email check completed')
 
     if (existingUserByEmail) {
-      // Check rate limiting for failed attempts first
+      // Check rate limiting for failed attempts BEFORE recording
       const { checkFailedAttemptRateLimit } = await import('@/lib/rate-limit')
       const rateLimitResult = checkFailedAttemptRateLimit(clientIP)
+      
+      // Record failed attempt for rate limiting (duplicate email)
+      const { recordFailedAttempt } = await import('@/lib/rate-limit')
+      recordFailedAttempt(clientIP)
       
       // Only apply rate limiting if we've exceeded the limit
       if (!rateLimitResult.allowed) {
         return NextResponse.json(
           {
+            success: false,
             error: 'Too Many Requests',
             message: 'Rate limit exceeded. Please try again later.',
             status: 429,
@@ -49,13 +54,10 @@ export async function POST(request: NextRequest) {
         )
       }
       
-      // Record failed attempt for rate limiting (duplicate email) after checking
-      const { recordFailedAttempt } = await import('@/lib/rate-limit')
-      recordFailedAttempt(clientIP)
-      
       return NextResponse.json(
         {
-          error: 'Conflict',
+          success: false,
+          error: 'An account with this email already exists.',
           message: 'An account with this email already exists.',
           status: 409
         },
@@ -68,14 +70,19 @@ export async function POST(request: NextRequest) {
     console.log('Username check completed')
 
     if (existingUserByUsername) {
-      // Check rate limiting for failed attempts first
+      // Check rate limiting for failed attempts BEFORE recording
       const { checkFailedAttemptRateLimit } = await import('@/lib/rate-limit')
       const rateLimitResult = checkFailedAttemptRateLimit(clientIP)
+      
+      // Record failed attempt for rate limiting (duplicate username)
+      const { recordFailedAttempt } = await import('@/lib/rate-limit')
+      recordFailedAttempt(clientIP)
       
       // Only apply rate limiting if we've exceeded the limit
       if (!rateLimitResult.allowed) {
         return NextResponse.json(
           {
+            success: false,
             error: 'Too Many Requests',
             message: 'Rate limit exceeded. Please try again later.',
             status: 429,
@@ -93,13 +100,10 @@ export async function POST(request: NextRequest) {
         )
       }
       
-      // Record failed attempt for rate limiting (duplicate username) after checking
-      const { recordFailedAttempt } = await import('@/lib/rate-limit')
-      recordFailedAttempt(clientIP)
-      
       return NextResponse.json(
         {
-          error: 'Conflict',
+          success: false,
+          error: 'Username is already taken.',
           message: 'Username is already taken.',
           status: 409
         },
@@ -151,6 +155,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error && error.message.includes('Validation failed')) {
       return NextResponse.json(
         {
+          success: false,
           error: 'Bad Request',
           message: error.message,
           status: 400
@@ -162,6 +167,7 @@ export async function POST(request: NextRequest) {
     // Generic error response
     return NextResponse.json(
       {
+        success: false,
         error: 'Internal Server Error',
         message: 'An error occurred during registration. Please try again.',
         status: 500,
