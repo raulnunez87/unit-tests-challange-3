@@ -44,9 +44,6 @@ export async function POST(request: NextRequest) {
 
     // If user doesn't exist or password is invalid
     if (!user || !isPasswordValid) {
-      // Record failed attempt for security monitoring
-      recordFailedAttempt(clientIP)
-      
       // Check if we should rate limit after failed attempts
       const rateLimitResult = checkFailedAttemptRateLimit(clientIP)
       if (!rateLimitResult.allowed) {
@@ -68,6 +65,9 @@ export async function POST(request: NextRequest) {
           }
         )
       }
+      
+      // Record failed attempt for security monitoring
+      recordFailedAttempt(clientIP)
       
       // Return generic error to prevent user enumeration
       return NextResponse.json(

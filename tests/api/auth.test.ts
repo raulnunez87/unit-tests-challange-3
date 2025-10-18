@@ -351,6 +351,7 @@ describe('Authentication API', () => {
       await registerHandler(initialRequest)
 
       // Now make multiple registration requests with duplicate email to trigger failures
+      // We need to make 6 requests total to trigger rate limiting (5 allowed + 1 rate limited)
       for (let i = 0; i < 6; i++) {
         const user = {
           ...testUser,

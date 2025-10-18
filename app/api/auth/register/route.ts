@@ -33,9 +33,6 @@ export async function POST(request: NextRequest) {
     })
 
     if (existingUserByEmail) {
-      // Record failed attempt for security monitoring
-      recordFailedAttempt(clientIP)
-      
       // Check if we should rate limit after failed attempts
       const rateLimitResult = checkFailedAttemptRateLimit(clientIP)
       if (!rateLimitResult.allowed) {
@@ -57,6 +54,9 @@ export async function POST(request: NextRequest) {
           }
         )
       }
+      
+      // Record failed attempt for security monitoring
+      recordFailedAttempt(clientIP)
       
       return NextResponse.json(
         {
@@ -75,9 +75,6 @@ export async function POST(request: NextRequest) {
     })
 
     if (existingUserByUsername) {
-      // Record failed attempt for security monitoring
-      recordFailedAttempt(clientIP)
-      
       // Check if we should rate limit after failed attempts
       const rateLimitResult = checkFailedAttemptRateLimit(clientIP)
       if (!rateLimitResult.allowed) {
@@ -99,6 +96,9 @@ export async function POST(request: NextRequest) {
           }
         )
       }
+      
+      // Record failed attempt for security monitoring
+      recordFailedAttempt(clientIP)
       
       return NextResponse.json(
         {
