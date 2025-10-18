@@ -91,6 +91,9 @@ export async function POST(request: NextRequest) {
     // Generate JWT token for authenticated session
     const token = await createToken(user.id, user.email, user.username)
 
+    // Check rate limit for successful login
+    const rateLimitResult = checkRateLimit(clientIP)
+    
     // Return success response with token
     return NextResponse.json(
       {
