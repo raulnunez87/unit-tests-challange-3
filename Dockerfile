@@ -1,9 +1,9 @@
-FROM node:18-alpine
+FROM node:18-slim
 
 WORKDIR /app
 
-# Install MongoDB shell for health checks and OpenSSL for Prisma
-RUN apk add --no-cache mongodb-tools openssl1.1-compat
+# Install OpenSSL for Prisma compatibility
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
 COPY package*.json ./
