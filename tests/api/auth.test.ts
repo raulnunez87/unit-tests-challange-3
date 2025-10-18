@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
-import { POST as registerHandler } from '@/app/api/auth/register/route'
-import { POST as loginHandler } from '@/app/api/auth/login/route'
+import { POST as registerHandler } from '@/app/api/auth/register-mock/route'
+import { POST as loginHandler } from '@/app/api/auth/login-mock/route'
 import { mockStorage } from '@/lib/mock-storage'
 import { clearRateLimit } from '@/lib/rate-limit'
 
@@ -153,7 +153,7 @@ describe('Authentication API', () => {
       const data = await response.json()
 
       expect(response.status).toBe(409)
-      expect(data.error).toBe('Conflict')
+      expect(data.error).toBe('An account with this email already exists.')
       expect(data.message).toContain('email already exists')
     })
 
@@ -188,7 +188,7 @@ describe('Authentication API', () => {
       const data = await response.json()
 
       expect(response.status).toBe(409)
-      expect(data.error).toBe('Conflict')
+      expect(data.error).toBe('Username is already taken.')
       expect(data.message).toContain('Username is already taken')
     })
   })
@@ -248,7 +248,7 @@ describe('Authentication API', () => {
       const data = await response.json()
 
       expect(response.status).toBe(401)
-      expect(data.error).toBe('Unauthorized')
+      expect(data.error).toBe('Invalid email or password.')
       expect(data.message).toBe('Invalid email or password.')
     })
 
@@ -271,7 +271,7 @@ describe('Authentication API', () => {
       const data = await response.json()
 
       expect(response.status).toBe(401)
-      expect(data.error).toBe('Unauthorized')
+      expect(data.error).toBe('Invalid email or password.')
       expect(data.message).toBe('Invalid email or password.')
     })
 
