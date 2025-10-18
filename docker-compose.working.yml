@@ -5,16 +5,11 @@ services:
     restart: unless-stopped
     ports:
       - "27017:27017"
-    command: mongod --replSet rs0 --bind_ip_all --logpath /var/log/mongodb/mongod.log
-    volumes:
-      - mongodb_data:/data/db
-      - mongodb_logs:/var/log/mongodb
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    command: mongod --replSet rs0 --bind_ip_all --dbpath /tmp/mongodb --nojournal
+    tmpfs:
+      - /tmp/mongodb
+    environment:
+      - MONGO_INITDB_DATABASE=auth_system
 
   app:
     build: .
@@ -28,14 +23,9 @@ services:
       - JWT_SECRET=your-super-secret-jwt-key-here-make-it-very-long-and-secure
       - BCRYPT_ROUNDS=12
     depends_on:
-      mongodb:
-        condition: service_healthy
+      - mongodb
     volumes:
       - .:/app
       - /app/node_modules
     working_dir: /app
-    command: sh -c "npm run dev"
-
-volumes:
-  mongodb_data:
-  mongodb_logs:
+    command: sh -c "sleep 30 && npm run dev"

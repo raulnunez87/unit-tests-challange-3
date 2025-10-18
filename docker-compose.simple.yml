@@ -1,0 +1,13 @@
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: auth-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    command: mongod --replSet rs0 --bind_ip_all
+    volumes:
+      - mongodb_data:/data/db
+
+volumes:
+  mongodb_data:

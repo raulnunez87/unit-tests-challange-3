@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { POST as registerHandler } from '@/app/api/auth/register/route'
 import { POST as loginHandler } from '@/app/api/auth/login/route'
 import { mockStorage } from '@/lib/mock-storage'
+import { clearRateLimit } from '@/lib/rate-limit'
 
 /**
  * Integration tests for authentication API endpoints
@@ -11,20 +12,22 @@ import { mockStorage } from '@/lib/mock-storage'
 
 describe('Authentication API', () => {
   const testUser = {
-    email: 'test@example.com',
-    username: 'testuser',
+    email: `test-${Date.now()}@example.com`,
+    username: `testuser-${Date.now()}`,
     password: 'MySecurePass789!',
     confirmPassword: 'MySecurePass789!'
   }
 
   const testLogin = {
-    email: 'test@example.com',
+    email: testUser.email,
     password: 'MySecurePass789!'
   }
 
   beforeEach(async () => {
     // Clean mock storage before each test
     mockStorage.clearAll()
+    // Clear rate limiting cache before each test
+    clearRateLimit()
   })
 
   describe('POST /api/auth/register', () => {
@@ -192,6 +195,8 @@ describe('Authentication API', () => {
 
   describe('POST /api/auth/login', () => {
     beforeEach(async () => {
+      // Clear rate limiting cache before each test
+      clearRateLimit()
       // Create a user for login tests
       const request = new NextRequest('http://localhost:3000/api/auth/register', {
         method: 'POST',
@@ -318,19 +323,28 @@ describe('Authentication API', () => {
   })
 
   describe('Rate Limiting', () => {
+    beforeEach(async () => {
+      // Clear rate limiting cache before each rate limiting test
+      clearRateLimit()
+    })
+
     it('should enforce rate limiting on registration', async () => {
+      // Use a unique IP for this test to avoid interference from previous tests
+      const uniqueIP = '10.0.0.100'
+      
       // First, create a user to make subsequent registrations fail
+      const uniqueEmail = `duplicate-${Date.now()}@example.com`
       const initialUser = {
         ...testUser,
-        email: 'duplicate@example.com',
-        username: 'initialuser'
+        email: uniqueEmail,
+        username: `initialuser-${Date.now()}`
       }
       
       const initialRequest = new NextRequest('http://localhost:3000/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-forwarded-for': '192.168.1.1'
+          'x-forwarded-for': uniqueIP
         },
         body: JSON.stringify(initialUser)
       })
@@ -340,15 +354,15 @@ describe('Authentication API', () => {
       for (let i = 0; i < 6; i++) {
         const user = {
           ...testUser,
-          email: 'duplicate@example.com', // Same email to trigger duplicate error
-          username: `testuser${i}`
+          email: uniqueEmail, // Same email to trigger duplicate error
+          username: `testuser-${Date.now()}-${i}`
         }
 
         const request = new NextRequest('http://localhost:3000/api/auth/register', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-forwarded-for': '192.168.1.1'
+            'x-forwarded-for': uniqueIP
           },
           body: JSON.stringify(user)
         })
@@ -368,12 +382,15 @@ describe('Authentication API', () => {
     })
 
     it('should enforce rate limiting on login', async () => {
+      // Use a unique IP for this test to avoid interference from previous tests
+      const uniqueIP = '10.0.0.200'
+      
       // Create a user first
       const registerRequest = new NextRequest('http://localhost:3000/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-forwarded-for': '192.168.1.1'
+          'x-forwarded-for': uniqueIP
         },
         body: JSON.stringify(testUser)
       })
@@ -385,7 +402,7 @@ describe('Authentication API', () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-forwarded-for': '192.168.1.1'
+            'x-forwarded-for': uniqueIP
           },
           body: JSON.stringify({
             email: testLogin.email,
