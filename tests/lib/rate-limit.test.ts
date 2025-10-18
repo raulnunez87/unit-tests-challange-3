@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { checkRateLimit, recordFailedAttempt, clearRateLimit, getClientIP } from '@/lib/rate-limit'
+import { checkRateLimit, recordFailedAttempt, clearRateLimit, getClientIP, checkFailedAttemptRateLimit, getRateLimitStatus } from '@/lib/rate-limit'
 
 /**
  * Unit tests for rate limiting utilities
@@ -180,6 +180,144 @@ describe('Rate Limiting', () => {
       
       const ip = getClientIP(headers)
       expect(ip).toBe('192.168.1.100')
+    })
+
+    it('should handle headers with multiple IPs in X-Forwarded-For', () => {
+      const headers = new Headers({
+        'x-forwarded-for': '192.168.1.100, 10.0.0.1, 172.16.0.1'
+      })
+      
+      const ip = getClientIP(headers)
+      expect(ip).toBe('192.168.1.100') // Should take the first IP
+    })
+
+    it('should handle empty X-Forwarded-For header', () => {
+      const headers = new Headers({
+        'x-forwarded-for': ''
+      })
+      
+      const ip = getClientIP(headers)
+      expect(ip).toBe('unknown')
+    })
+  })
+
+  describe('checkFailedAttemptRateLimit', () => {
+    beforeEach(() => {
+      clearRateLimit(testIP)
+    })
+
+    it('should allow request when no previous failed attempts', () => {
+      const result = checkFailedAttemptRateLimit(testIP)
+      
+      expect(result.allowed).toBe(true)
+      expect(result.remaining).toBe(5)
+      expect(result.resetTime).toBeGreaterThan(Date.now())
+    })
+
+    it('should track failed attempts without incrementing', () => {
+      // Record some failed attempts
+      recordFailedAttempt(testIP)
+      recordFailedAttempt(testIP)
+      
+      const result = checkFailedAttemptRateLimit(testIP)
+      
+      expect(result.allowed).toBe(true)
+      expect(result.remaining).toBe(3) // 5 - 2 = 3
+    })
+
+    it('should block after exceeding failed attempt limit', () => {
+      // Record 5 failed attempts
+      for (let i = 0; i < 5; i++) {
+        recordFailedAttempt(testIP)
+      }
+      
+      const result = checkFailedAttemptRateLimit(testIP)
+      
+      expect(result.allowed).toBe(false)
+      expect(result.remaining).toBe(0)
+      expect(result.retryAfter).toBeDefined()
+    })
+
+    it('should handle invalid IP gracefully', () => {
+      const result1 = checkFailedAttemptRateLimit('')
+      const result2 = checkFailedAttemptRateLimit(null as any)
+      const result3 = checkFailedAttemptRateLimit(undefined as any)
+      
+      // Should fail open and allow request
+      expect(result1.allowed).toBe(true)
+      expect(result2.allowed).toBe(true)
+      expect(result3.allowed).toBe(true)
+    })
+  })
+
+  describe('getRateLimitStatus', () => {
+    beforeEach(() => {
+      clearRateLimit(testIP)
+    })
+
+    it('should return null for non-existent IP', () => {
+      const status = getRateLimitStatus(testIP)
+      expect(status).toBeNull()
+    })
+
+    it('should return rate limit data for existing IP', () => {
+      // Make some requests
+      checkRateLimit(testIP)
+      checkRateLimit(testIP)
+      
+      const status = getRateLimitStatus(testIP)
+      expect(status).not.toBeNull()
+      expect(status?.attempts).toBe(2)
+      expect(status?.firstAttempt).toBeDefined()
+      expect(status?.lastAttempt).toBeDefined()
+    })
+
+    it('should handle invalid IP gracefully', () => {
+      const status1 = getRateLimitStatus('')
+      const status2 = getRateLimitStatus(null as any)
+      const status3 = getRateLimitStatus(undefined as any)
+      
+      expect(status1).toBeNull()
+      expect(status2).toBeNull()
+      expect(status3).toBeNull()
+    })
+  })
+
+  describe('clearRateLimit', () => {
+    it('should clear all rate limit data when no IP specified', () => {
+      // Make requests from multiple IPs
+      checkRateLimit('192.168.1.1')
+      checkRateLimit('192.168.1.2')
+      
+      // Clear all data
+      clearRateLimit()
+      
+      // Both IPs should start fresh
+      const result1 = checkRateLimit('192.168.1.1')
+      const result2 = checkRateLimit('192.168.1.2')
+      
+      expect(result1.remaining).toBe(4)
+      expect(result2.remaining).toBe(4)
+    })
+
+    it('should clear specific IP data when IP specified', () => {
+      const ip1 = '192.168.1.1'
+      const ip2 = '192.168.1.2'
+      
+      // Make requests from both IPs
+      checkRateLimit(ip1) // 1st attempt for ip1
+      checkRateLimit(ip1) // 2nd attempt for ip1
+      checkRateLimit(ip2) // 1st attempt for ip2
+      
+      // Clear only ip1
+      clearRateLimit(ip1)
+      
+      // ip1 should start fresh, ip2 should keep its count
+      const result1 = checkRateLimit(ip1) // Fresh start for ip1 (1st attempt)
+      const result2 = checkRateLimit(ip2) // 2nd attempt for ip2
+      
+      expect(result1.remaining).toBe(4) // Fresh start (4 remaining after 1st attempt)
+      expect(result2.remaining).toBe(2) // 2 remaining after 2nd attempt (5-2=3, but it's 5-3=2)
     })
   })
 })

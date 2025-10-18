@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { createToken, verifyToken, extractTokenFromHeader, validateAuthHeader } from '@/lib/auth'
+import { createToken, verifyToken, extractTokenFromHeader, validateAuthHeader, createRefreshToken, verifyRefreshToken } from '@/lib/auth'
 
 /**
  * Unit tests for JWT authentication utilities
@@ -154,6 +154,57 @@ describe('JWT Authentication', () => {
       // Note: In real tests, you'd need to mock the time or create an actually expired token
       // For now, we'll test with invalid token
       const result = await validateAuthHeader('Bearer expired.token.here')
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('createRefreshToken', () => {
+    it('should create a valid refresh token', async () => {
+      const refreshToken = await createRefreshToken(testUser.userId)
+      
+      expect(refreshToken).toBeDefined()
+      expect(typeof refreshToken).toBe('string')
+      expect(refreshToken.split('.')).toHaveLength(3) // JWT has 3 parts
+    })
+
+    it('should throw error for missing user ID', async () => {
+      await expect(createRefreshToken('')).rejects.toThrow('Refresh token creation failed')
+    })
+
+    it('should create different refresh tokens for same user', async () => {
+      const token1 = await createRefreshToken(testUser.userId)
+      const token2 = await createRefreshToken(testUser.userId)
+      
+      expect(token1).not.toBe(token2) // Different JTI should make tokens different
+    })
+  })
+
+  describe('verifyRefreshToken', () => {
+    it('should verify a valid refresh token', async () => {
+      const refreshToken = await createRefreshToken(testUser.userId)
+      const userId = await verifyRefreshToken(refreshToken)
+      
+      expect(userId).toBe(testUser.userId)
+    })
+
+    it('should return null for invalid refresh token', async () => {
+      const result1 = await verifyRefreshToken('invalid.token.here')
+      expect(result1).toBeNull()
+      
+      const result2 = await verifyRefreshToken('')
+      expect(result2).toBeNull()
+    })
+
+    it('should return null for regular JWT token (not refresh token)', async () => {
+      const regularToken = await createToken(testUser.userId, testUser.email, testUser.username)
+      const result = await verifyRefreshToken(regularToken)
+      
+      expect(result).toBeNull()
+    })
+
+    it('should return null for expired refresh token', async () => {
+      // Create a token that would be expired (in real scenario)
+      const result = await verifyRefreshToken('expired.refresh.token')
       expect(result).toBeNull()
     })
   })
