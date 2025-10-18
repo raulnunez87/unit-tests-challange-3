@@ -15,6 +15,17 @@ jobs:
     name: Build, Test & Coverage
     runs-on: ubuntu-latest
     
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
@@ -31,6 +42,15 @@ jobs:
       - name: Generate Prisma client
         run: npm run db:generate
 
+      - name: Wait for MongoDB
+        run: |
+          echo "Waiting for MongoDB to be ready..."
+          until mongosh --host localhost:27017 --eval "db.adminCommand('ping')" > /dev/null 2>&1; do
+            echo "MongoDB is not ready yet, waiting..."
+            sleep 2
+          done
+          echo "MongoDB is ready!"
+
       - name: Lint código
         run: npm run lint
         continue-on-error: false
@@ -42,6 +62,12 @@ jobs:
       - name: Run tests with coverage
         run: npm run test:ci
         continue-on-error: false
+        env:
+          JWT_SECRET: test-jwt-secret-key-at-least-32-characters-long-for-testing
+          BCRYPT_ROUNDS: 12
+          DATABASE_URL: mongodb://localhost:27017/auth-module-test
+          NODE_ENV: test
+          JWT_EXPIRATION_MINUTES: 15
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
@@ -200,6 +226,10 @@ jobs:
         run: npm run build
         env:
           JWT_SECRET: test-jwt-secret-that-is-at-least-32-characters-long
+          BCRYPT_ROUNDS: 12
+          DATABASE_URL: mongodb://localhost:27017/auth-module-test
+          NODE_ENV: test
+          JWT_EXPIRATION_MINUTES: 15
 
       - name: Start application
         run: |
@@ -208,6 +238,10 @@ jobs:
           curl -f http://localhost:3000 || exit 1
         env:
           JWT_SECRET: test-jwt-secret-that-is-at-least-32-characters-long
+          BCRYPT_ROUNDS: 12
+          DATABASE_URL: mongodb://localhost:27017/auth-module-test
+          NODE_ENV: test
+          JWT_EXPIRATION_MINUTES: 15
 
       - name: Run ZAP Baseline Scan
         uses: zaproxy/action-baseline@v0.7.0
