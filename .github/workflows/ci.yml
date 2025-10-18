@@ -15,16 +15,6 @@ jobs:
     name: Build, Test & Coverage
     runs-on: ubuntu-latest
     
-    services:
-      mongodb:
-        image: mongo:7.0
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     
     steps:
       - name: Checkout código
@@ -39,15 +29,28 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate Prisma client
-        run: npm run db:generate
+      - name: Start MongoDB
+        run: |
+          echo "Starting MongoDB container..."
+          docker run -d --name mongodb-test -p 27017:27017 mongo:7.0
+          echo "MongoDB container started"
 
       - name: Wait for MongoDB
         run: |
           echo "Waiting for MongoDB to be ready..."
-          until mongosh --host localhost:27017 --eval "db.adminCommand('ping')" > /dev/null 2>&1; do
-            echo "MongoDB is not ready yet, waiting..."
+          # Simple TCP connection check
+          timeout=30
+          counter=0
+          until nc -z localhost 27017; do
+            if [ $counter -ge $timeout ]; then
+              echo "MongoDB failed to start within $timeout seconds"
+              echo "Checking if port 27017 is open..."
+              netstat -tuln | grep 27017 || echo "Port 27017 not found"
+              exit 1
+            fi
+            echo "MongoDB is not ready yet, waiting... ($counter/$timeout)"
             sleep 2
+            counter=$((counter + 2))
           done
           echo "MongoDB is ready!"
 
@@ -75,6 +78,13 @@ jobs:
           name: coverage-report
           path: coverage/
           retention-days: 30
+
+      - name: Cleanup MongoDB
+        if: always()
+        run: |
+          echo "Cleaning up MongoDB container..."
+          docker stop mongodb-test || true
+          docker rm mongodb-test || true
 
       - name: Comment coverage on PR
         if: github.event_name == 'pull_request'
