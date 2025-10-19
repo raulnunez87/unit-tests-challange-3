@@ -193,11 +193,21 @@ jobs:
           
           # Parse audit results and fail if High/Critical vulnerabilities found
           if [ -f audit-results.json ]; then
-            HIGH_VULNS=$(cat audit-results.json | jq '.advisories | to_entries | map(select(.value.severity == "high" or .value.severity == "critical")) | length')
-            if [ "$HIGH_VULNS" -gt 0 ]; then
-              echo "❌ Found $HIGH_VULNS High/Critical vulnerabilities"
+            # Check for high/critical vulnerabilities in the new npm audit format
+            HIGH_VULNS=$(cat audit-results.json | jq '.metadata.vulnerabilities.high // 0')
+            CRITICAL_VULNS=$(cat audit-results.json | jq '.metadata.vulnerabilities.critical // 0')
+            TOTAL_HIGH_CRITICAL=$((HIGH_VULNS + CRITICAL_VULNS))
+            
+            echo "📊 Vulnerability Summary:"
+            echo "  High: $HIGH_VULNS"
+            echo "  Critical: $CRITICAL_VULNS"
+            echo "  Total High/Critical: $TOTAL_HIGH_CRITICAL"
+            
+            if [ "$TOTAL_HIGH_CRITICAL" -gt 0 ]; then
+              echo "❌ Found $TOTAL_HIGH_CRITICAL High/Critical vulnerabilities"
               echo "Run 'npm audit fix' to resolve automatically fixable issues"
-              cat audit-results.json | jq '.advisories | to_entries | map(select(.value.severity == "high" or .value.severity == "critical")) | .[].value | {id, title, severity, vulnerable_versions}'
+              # Show details of high/critical vulnerabilities
+              cat audit-results.json | jq '.vulnerabilities | to_entries | map(select(.value.severity == "high" or .value.severity == "critical")) | .[].value | {name, severity, title}'
               exit 1
             else
               echo "✅ No High/Critical vulnerabilities found"
