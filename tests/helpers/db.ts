@@ -5,6 +5,45 @@ import { PrismaClient } from '@prisma/client'
  * Provides utilities for managing test database state
  */
 
+// Connection pool to manage Prisma clients
+const connectionPool = new Map<string, PrismaClient>()
+const MAX_CONNECTIONS = 5
+
+// Get or create a Prisma client with connection pooling
+const getPrismaClient = (): PrismaClient => {
+  const key = 'test-client'
+  
+  if (connectionPool.has(key)) {
+    return connectionPool.get(key)!
+  }
+  
+  if (connectionPool.size >= MAX_CONNECTIONS) {
+    // Close oldest connection if pool is full
+    const oldestKey = connectionPool.keys().next().value
+    const oldestClient = connectionPool.get(oldestKey)
+    if (oldestClient) {
+      oldestClient.$disconnect().catch(() => {})
+      connectionPool.delete(oldestKey)
+    }
+  }
+  
+  const client = createTestPrismaClient()
+  connectionPool.set(key, client)
+  return client
+}
+
+// Clean up all connections
+export const cleanupConnections = async () => {
+  for (const [key, client] of connectionPool.entries()) {
+    try {
+      await client.$disconnect()
+    } catch (error) {
+      console.warn(`Failed to disconnect client ${key}:`, error)
+    }
+  }
+  connectionPool.clear()
+}
+
 // Create a dedicated test Prisma client with better error handling
 const createTestPrismaClient = () => {
   return new PrismaClient({
@@ -14,31 +53,53 @@ const createTestPrismaClient = () => {
       }
     },
     log: ['error'], // Only log errors to reduce noise
-    errorFormat: 'minimal' // Use minimal error format for cleaner output
+    errorFormat: 'minimal', // Use minimal error format for cleaner output
+    // Add connection timeout and retry settings
+    __internal: {
+      engine: {
+        connectTimeout: 10000, // 10 seconds
+        socketTimeout: 30000, // 30 seconds
+      }
+    }
   })
 }
 
-export const cleanupTestData = async () => {
-  const prisma = createTestPrismaClient()
-  try {
-    // Clean up all test users (those with test emails)
-    await prisma.user.deleteMany({
-      where: {
-        email: {
-          contains: '@example.com'
-        }
+// Helper function to retry database operations
+const retryDatabaseOperation = async <T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  delay: number = 1000
+): Promise<T> => {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await operation()
+    } catch (error) {
+      if (i === maxRetries - 1) {
+        throw error
       }
+      console.warn(`Database operation failed, retrying... (${i + 1}/${maxRetries})`)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+  throw new Error('Max retries exceeded')
+}
+
+export const cleanupTestData = async () => {
+  const prisma = getPrismaClient()
+  try {
+    // Clean up all test users (those with test emails) with retry
+    await retryDatabaseOperation(async () => {
+      await prisma.user.deleteMany({
+        where: {
+          email: {
+            contains: '@example.com'
+          }
+        }
+      })
     })
   } catch (error) {
     console.warn('Failed to cleanup test data:', error)
     // Don't throw the error to avoid breaking tests
-  } finally {
-    // Always try to disconnect to clean up connections
-    try {
-      await prisma.$disconnect()
-    } catch (disconnectError) {
-      // Ignore disconnect errors
-    }
   }
 }
 
@@ -71,40 +132,31 @@ export const createTestUser = async (userData: {
   username: string
   password: string
 }) => {
-  const prisma = createTestPrismaClient()
+  const prisma = getPrismaClient()
   try {
-    return await prisma.user.create({
-      data: userData
+    return await retryDatabaseOperation(async () => {
+      return await prisma.user.create({
+        data: userData
+      })
     })
   } catch (error) {
     console.warn('Failed to create test user:', error)
     throw error
-  } finally {
-    try {
-      await prisma.$disconnect()
-    } catch (disconnectError) {
-      // Ignore disconnect errors
-    }
   }
 }
 
 export const deleteTestUser = async (email: string) => {
-  const prisma = createTestPrismaClient()
+  const prisma = getPrismaClient()
   try {
-    await prisma.user.deleteMany({
-      where: {
-        email: email
-      }
+    await retryDatabaseOperation(async () => {
+      await prisma.user.deleteMany({
+        where: {
+          email: email
+        }
+      })
     })
   } catch (error) {
     console.warn('Failed to delete test user:', error)
     // Don't throw the error to avoid breaking tests
-  } finally {
-    // Always try to disconnect to clean up connections
-    try {
-      await prisma.$disconnect()
-    } catch (disconnectError) {
-      // Ignore disconnect errors
-    }
   }
 }

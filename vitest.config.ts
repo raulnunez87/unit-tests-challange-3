@@ -9,6 +9,7 @@ export default defineConfig({
     testTimeout: 60000,
     hookTimeout: 45000,
     globalSetup: ['./tests/global-setup.ts'],
+    globalTeardown: ['./tests/global-setup.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

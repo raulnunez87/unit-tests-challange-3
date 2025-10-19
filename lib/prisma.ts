@@ -11,7 +11,7 @@ declare global {
   var __prisma: PrismaClient | undefined
 }
 
-// Create Prisma client instance
+// Create Prisma client instance with improved connection handling
 const prisma = globalThis.__prisma || new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   errorFormat: 'minimal',
@@ -30,6 +30,14 @@ const prisma = globalThis.__prisma || new PrismaClient({
     }
   })
 })
+
+// Add connection retry logic for test environment
+if (process.env.NODE_ENV === 'test') {
+  // Ensure connection is established before use
+  prisma.$connect().catch((error) => {
+    console.warn('Initial Prisma connection failed:', error.message)
+  })
+}
 
 // In development, save the client to global to prevent multiple instances
 if (process.env.NODE_ENV === 'development') {
