@@ -9,12 +9,39 @@ services:
     volumes:
       - mongodb_data:/data/db
       - mongodb_logs:/var/log/mongodb
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    environment:
+      - MONGO_INITDB_DATABASE=auth_system
+
+  mongo-init:
+    image: mongo:7.0
+    container_name: mongo-init
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    command: >
+      bash -c "
+        echo 'Waiting for MongoDB to be ready...' &&
+        sleep 10 &&
+        mongosh --host mongodb:27017 --eval '
+          try {
+            rs.initiate({
+              _id: \"rs0\",
+              members: [{ _id: 0, host: \"mongodb:27017\" }]
+            });
+            print(\"Replica set initialization started\");
+          } catch (e) {
+            print(\"Replica set may already be initialized: \" + e);
+          }
+        ' &&
+        echo 'Replica set initialization completed'
+      "
 
   app:
     build: .

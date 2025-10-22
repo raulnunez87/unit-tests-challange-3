@@ -6,8 +6,9 @@ export async function GET() {
     // Test database connection
     await prisma.$connect()
     
-    // Test a simple query
-    const userCount = await prisma.user.count()
+    // Test a simple query - get all users and count them
+    const users = await prisma.user.findMany()
+    const userCount = users.length
     
     return NextResponse.json({ 
       message: 'Database connection successful',

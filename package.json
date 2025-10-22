@@ -10,6 +10,7 @@
     "lint": "next lint",
     "test": "vitest",
     "test:with-db": "./run-tests.sh",
+    "test:setup-mongo": "./scripts/setup-mongodb-simple.sh",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
     "test:coverage:threshold": "vitest --coverage --coverage.thresholds.lines=80 --coverage.thresholds.branches=80",

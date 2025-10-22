@@ -51,30 +51,48 @@ export const ensureDatabaseReady = async () => {
 export const waitForDatabase = async (maxRetries = 30, delay = 1000) => {
   const { PrismaClient } = await import('@prisma/client')
   
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const prisma = new PrismaClient({
-        datasources: {
-          db: {
-            url: process.env.DATABASE_URL
-          }
-        },
-        log: ['error'] // Only log errors to reduce noise
-      })
-      
-      await prisma.$connect()
-      await prisma.$disconnect()
-      return true
-    } catch (error) {
-      console.warn(`Database connection attempt ${i + 1}/${maxRetries} failed:`, error.message)
-      if (i === maxRetries - 1) {
-        console.error(`Database connection failed after ${maxRetries} attempts:`, error)
-        // Don't throw error, just return false to allow tests to continue
-        return false
+  // Try different connection strategies
+  const connectionStrategies = [
+    // Strategy 1: Replica set (required by Prisma for transactions)
+    'mongodb://localhost:27017/auth-module-test?replicaSet=rs0',
+    // Strategy 2: Replica set with direct connection
+    'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&directConnection=true',
+    // Strategy 3: Direct connection without replica set (fallback)
+    'mongodb://localhost:27017/auth-module-test?directConnection=true'
+  ]
+  
+  for (const strategy of connectionStrategies) {
+    console.log(`Trying connection strategy: ${strategy}`)
+    
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const prisma = new PrismaClient({
+          datasources: {
+            db: {
+              url: strategy
+            }
+          },
+          log: ['error'] // Only log errors to reduce noise
+        })
+        
+        await prisma.$connect()
+        await prisma.$disconnect()
+        
+        // Update the environment variable to use the working connection
+        process.env.DATABASE_URL = strategy
+        console.log(`✅ Database connection successful with strategy: ${strategy}`)
+        return true
+      } catch (error) {
+        console.warn(`Database connection attempt ${i + 1}/${maxRetries} failed with strategy ${strategy}:`, error.message)
+        if (i === maxRetries - 1) {
+          console.warn(`Strategy ${strategy} failed after ${maxRetries} attempts`)
+          break // Try next strategy
+        }
+        await new Promise(resolve => setTimeout(resolve, delay))
       }
-      await new Promise(resolve => setTimeout(resolve, delay))
     }
   }
   
+  console.error('All database connection strategies failed')
   return false
 }
