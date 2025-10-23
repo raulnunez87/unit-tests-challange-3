@@ -22,8 +22,6 @@ jobs:
           - 27017:27017
         env:
           MONGO_INITDB_DATABASE: auth-module-test
-        options: >-
-          --logpath /var/log/mongodb/mongod.log
     
     steps:
       - name: Checkout código
