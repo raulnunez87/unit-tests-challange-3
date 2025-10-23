@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { POST } from '@/app/api/auth/register-simple/route'
+import { deleteTestUser } from '../helpers/db'
 import prisma from '@/lib/prisma'
 
 /**
@@ -25,11 +26,7 @@ describe('Authentication Register Simple API', () => {
 
   afterEach(async () => {
     // Clean up any test users that might have been created
-    await prisma.user.deleteMany({
-      where: {
-        email: testUser.email
-      }
-    })
+    await deleteTestUser(testUser.email)
   })
 
   describe('POST /api/auth/register-simple', () => {

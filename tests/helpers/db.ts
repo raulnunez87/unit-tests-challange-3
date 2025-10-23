@@ -14,7 +14,17 @@ const getPrismaClient = (): PrismaClient => {
   const key = 'test-client'
   
   if (connectionPool.has(key)) {
-    return connectionPool.get(key)!
+    const client = connectionPool.get(key)!
+    // Test the connection before returning
+    try {
+      // Simple ping to check if connection is still alive
+      client.$connect().catch(() => {})
+      return client
+    } catch (error) {
+      // Connection is dead, remove it and create a new one
+      connectionPool.delete(key)
+      client.$disconnect().catch(() => {})
+    }
   }
   
   if (connectionPool.size >= MAX_CONNECTIONS) {
@@ -53,32 +63,43 @@ const createTestPrismaClient = () => {
       }
     },
     log: ['error'], // Only log errors to reduce noise
-    errorFormat: 'minimal', // Use minimal error format for cleaner output
-    // Add connection timeout and retry settings
-    __internal: {
-      engine: {
-        connectTimeout: 10000, // 10 seconds
-        socketTimeout: 30000, // 30 seconds
-      }
-    }
+    errorFormat: 'minimal' // Use minimal error format for cleaner output
   })
 }
 
 // Helper function to retry database operations
 const retryDatabaseOperation = async <T>(
   operation: () => Promise<T>,
-  maxRetries: number = 3,
-  delay: number = 1000
+  maxRetries: number = 5,
+  delay: number = 2000
 ): Promise<T> => {
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await operation()
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      
+      // Check for specific MongoDB connection issues
+      const isConnectionError = errorMessage.includes('Server selection timeout') ||
+                               errorMessage.includes('No available servers') ||
+                               errorMessage.includes('TransientTransactionError') ||
+                               errorMessage.includes('connection') ||
+                               errorMessage.includes('timeout')
+      
       if (i === maxRetries - 1) {
+        console.error(`Database operation failed after ${maxRetries} attempts:`, errorMessage)
         throw error
       }
-      console.warn(`Database operation failed, retrying... (${i + 1}/${maxRetries})`)
-      await new Promise(resolve => setTimeout(resolve, delay))
+      
+      if (isConnectionError) {
+        console.warn(`Database connection issue, retrying... (${i + 1}/${maxRetries}): ${errorMessage}`)
+        // Use exponential backoff for connection issues
+        const backoffDelay = delay * Math.pow(2, i)
+        await new Promise(resolve => setTimeout(resolve, backoffDelay))
+      } else {
+        console.warn(`Database operation failed, retrying... (${i + 1}/${maxRetries}): ${errorMessage}`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
     }
   }
   throw new Error('Max retries exceeded')

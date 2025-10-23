@@ -7,7 +7,7 @@
 process.env.JWT_SECRET = 'test-jwt-secret-key-at-least-32-characters-long-for-testing'
 process.env.BCRYPT_ROUNDS = '12' // Use secure rounds even for tests
 // Use MongoDB with replica set for tests (required by Prisma)
-process.env.DATABASE_URL = 'mongodb://localhost:27017/auth-module-test?replicaSet=rs0'
+process.env.DATABASE_URL = 'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ;(process.env as any).NODE_ENV = 'test'
 process.env.JWT_EXPIRATION_MINUTES = '15'
@@ -19,13 +19,15 @@ if (typeof globalThis.crypto === 'undefined') {
 }
 
 // Global test timeout configuration
-const TEST_TIMEOUT = 60000 // 60 seconds for database operations
-const HOOK_TIMEOUT = 45000 // 45 seconds for setup/teardown
+const testTimeout = 60000 // 60 seconds for database operations
+const hookTimeout = 45000 // 45 seconds for setup/teardown
 
 // Configure global timeouts
 if (typeof global !== 'undefined') {
-  global.TEST_TIMEOUT = TEST_TIMEOUT
-  global.HOOK_TIMEOUT = HOOK_TIMEOUT
+  Object.assign(global, {
+    TEST_TIMEOUT: testTimeout,
+    HOOK_TIMEOUT: hookTimeout
+  })
 }
 
 // Global setup to ensure database is ready
@@ -35,13 +37,15 @@ export const ensureDatabaseReady = async () => {
   if (databaseReady) return true
   
   console.log('🔍 Checking database connection...')
-  const isReady = await waitForDatabase(10, 2000) // 10 attempts, 2 second delay
+  const isReady = await waitForDatabase(15, 3000) // 15 attempts, 3 second delay
   
   if (isReady) {
     console.log('✅ Database connection verified')
     databaseReady = true
   } else {
     console.warn('⚠️ Database connection not available, tests may fail')
+    // Don't fail completely, let tests try to handle it
+    databaseReady = false
   }
   
   return isReady
@@ -53,12 +57,12 @@ export const waitForDatabase = async (maxRetries = 30, delay = 1000) => {
   
   // Try different connection strategies
   const connectionStrategies = [
-    // Strategy 1: Replica set (required by Prisma for transactions)
-    'mongodb://localhost:27017/auth-module-test?replicaSet=rs0',
-    // Strategy 2: Replica set with direct connection
-    'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&directConnection=true',
+    // Strategy 1: Replica set with longer timeout (required by Prisma for transactions)
+    'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000',
+    // Strategy 2: Replica set with direct connection and longer timeout
+    'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&directConnection=true&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000',
     // Strategy 3: Direct connection without replica set (fallback)
-    'mongodb://localhost:27017/auth-module-test?directConnection=true'
+    'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000'
   ]
   
   for (const strategy of connectionStrategies) {

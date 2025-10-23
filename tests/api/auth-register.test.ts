@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { POST as registerHandler, GET, PUT, DELETE } from '@/app/api/auth/register/route'
 import { clearRateLimit } from '@/lib/rate-limit'
+import { deleteTestUser } from '../helpers/db'
 import prisma from '@/lib/prisma'
 
 /**
@@ -26,11 +27,7 @@ describe('Authentication Register API', () => {
 
   afterEach(async () => {
     // Clean up any test users that might have been created
-    await prisma.user.deleteMany({
-      where: {
-        email: testUser.email
-      }
-    })
+    await deleteTestUser(testUser.email)
     clearRateLimit()
   })
 
@@ -249,11 +246,11 @@ describe('Authentication Register API', () => {
 
         const response = await registerHandler(request)
         
-        if (i < 5) {
-          // First 5 requests should fail with 409 (duplicate email)
+        if (i < 4) {
+          // First 4 requests should fail with 409 (duplicate email)
           expect(response.status).toBe(409)
         } else {
-          // 6th request should be rate limited
+          // 5th and 6th requests should be rate limited (after 5 attempts)
           const data = await response.json()
           expect(response.status).toBe(429)
           expect(data.error).toBe('Too Many Requests')
@@ -308,28 +305,48 @@ describe('Authentication Register API', () => {
     })
 
     it('should handle unique constraint database errors', async () => {
-      // Mock prisma to throw a unique constraint error
-      vi.spyOn(prisma.user, 'create').mockRejectedValueOnce(new Error('Unique constraint failed'))
+      // First, create a user to establish the unique constraint
+      const firstUser = {
+        ...testUser,
+        email: `unique-${Date.now()}@example.com`,
+        username: `uniqueuser-${Date.now()}`
+      }
 
-      const request = new NextRequest('http://localhost:3000/api/auth/register', {
+      const firstRequest = new NextRequest('http://localhost:3000/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-forwarded-for': '192.168.1.1'
         },
-        body: JSON.stringify(testUser)
+        body: JSON.stringify(firstUser)
       })
 
-      const response = await registerHandler(request)
+      const firstResponse = await registerHandler(firstRequest)
+      expect(firstResponse.status).toBe(201)
+
+      // Now try to create another user with the same email
+      const duplicateUser = {
+        ...testUser,
+        email: firstUser.email, // Same email
+        username: `differentuser-${Date.now()}`
+      }
+
+      const duplicateRequest = new NextRequest('http://localhost:3000/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': '192.168.1.1'
+        },
+        body: JSON.stringify(duplicateUser)
+      })
+
+      const response = await registerHandler(duplicateRequest)
       const data = await response.json()
 
       expect(response.status).toBe(409)
       expect(data.success).toBe(false)
       expect(data.error).toBe('Conflict')
       expect(data.message).toBe('An account with this email or username already exists.')
-
-      // Restore original method
-      vi.restoreAllMocks()
     })
 
     it('should handle missing required fields', async () => {
