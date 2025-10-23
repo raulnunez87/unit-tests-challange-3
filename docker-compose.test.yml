@@ -9,13 +9,12 @@ services:
     volumes:
       - mongodb_test_data:/data/db
       - mongodb_test_logs:/var/log/mongodb
-      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     environment:
       - MONGO_INITDB_DATABASE=auth-module-test
 
@@ -28,14 +27,35 @@ services:
     command: >
       bash -c "
         echo 'Waiting for MongoDB to be ready...' &&
-        sleep 10 &&
+        sleep 5 &&
         mongosh --host mongodb-test:27017 --eval '
           try {
-            rs.initiate({
+            const config = {
               _id: \"rs0\",
               members: [{ _id: 0, host: \"mongodb-test:27017\" }]
-            });
+            };
+            rs.initiate(config);
             print(\"Replica set initialization started\");
+            
+            // Wait for replica set to be ready
+            let retries = 30;
+            while (retries > 0) {
+              try {
+                const status = rs.status();
+                if (status.ok === 1 && status.members[0].stateStr === \"PRIMARY\") {
+                  print(\"Replica set is ready!\");
+                  break;
+                }
+              } catch (e) {
+                print(\"Waiting for replica set to be ready...\");
+                sleep(1000);
+                retries--;
+              }
+            }
+            
+            if (retries === 0) {
+              print(\"Replica set initialization timed out\");
+            }
           } catch (e) {
             print(\"Replica set may already be initialized: \" + e);
           }
