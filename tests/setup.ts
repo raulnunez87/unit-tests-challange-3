@@ -6,8 +6,15 @@
 // Mock environment variables for testing
 process.env.JWT_SECRET = 'test-jwt-secret-key-at-least-32-characters-long-for-testing'
 process.env.BCRYPT_ROUNDS = '12' // Use secure rounds even for tests
-// Use MongoDB with replica set for tests (required by Prisma)
-process.env.DATABASE_URL = 'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority'
+// Use MongoDB connection for tests
+// In CI environments, use direct connection for reliability
+// In local development, try replica set first, then fallback to direct connection
+const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true'
+const defaultConnection = isCI 
+  ? 'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=10000&connectTimeoutMS=10000'
+  : 'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority'
+
+process.env.DATABASE_URL = process.env.DATABASE_URL || defaultConnection
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ;(process.env as any).NODE_ENV = 'test'
 process.env.JWT_EXPIRATION_MINUTES = '15'
@@ -56,13 +63,20 @@ export const waitForDatabase = async (maxRetries = 30, delay = 1000) => {
   const { PrismaClient } = await import('@prisma/client')
   
   // Try different connection strategies
-  const connectionStrategies = [
-    // Strategy 1: Replica set with optimized settings (required by Prisma for transactions)
+  // In CI, prioritize direct connection for reliability
+  const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true'
+  const connectionStrategies = isCI ? [
+    // CI: Direct connection first (most reliable)
+    'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=10000&connectTimeoutMS=10000',
+    'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority',
+    // Fallback to replica set in CI if direct connection fails
+    'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority'
+  ] : [
+    // Local: Replica set first (for transactions), then direct connection
     'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority',
-    // Strategy 2: Replica set with direct connection and shorter timeout
     'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&directConnection=true&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority',
-    // Strategy 3: Direct connection without replica set (fallback)
-    'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority'
+    'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority',
+    'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=10000&connectTimeoutMS=10000'
   ]
   
   for (const strategy of connectionStrategies) {

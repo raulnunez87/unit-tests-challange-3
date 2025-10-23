@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: auth-mongodb-ci
+    ports:
+      - "27017:27017"
+    command: mongod --replSet rs0 --bind_ip_all --port 27017
+    environment:
+      - MONGO_INITDB_DATABASE=auth-module-test
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  mongo-init:
+    image: mongo:7.0
+    container_name: mongo-init-ci
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    command: >
+      bash -c "
+        echo '🔧 Initializing MongoDB replica set...' &&
+        mongosh --host mongodb:27017 --eval '
+          try {
+            const config = {
+              _id: \"rs0\",
+              members: [{ _id: 0, host: \"mongodb:27017\" }]
+            };
+            rs.initiate(config);
+            print(\"Replica set initialization started\");
+          } catch (e) {
+            print(\"Replica set may already be initialized: \" + e);
+          }
+        ' &&
+        echo '⏳ Waiting for replica set to be ready...' &&
+        sleep 5 &&
+        mongosh --host mongodb:27017 --eval '
+          let retries = 30;
+          while (retries > 0) {
+            try {
+              const status = rs.status();
+              if (status.ok === 1 && status.members[0].stateStr === \"PRIMARY\") {
+                print(\"✅ Replica set is ready!\");
+                break;
+              }
+            } catch (e) {
+              print(\"⏳ Waiting for replica set... (\" + retries + \" retries left)\");
+              sleep(2000);
+              retries--;
+            }
+          }
+          if (retries === 0) {
+            print(\"❌ Replica set initialization timed out\");
+            exit(1);
+          }
+        ' &&
+        echo '✅ MongoDB setup completed!'
+      "

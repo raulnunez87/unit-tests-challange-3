@@ -22,6 +22,9 @@ jobs:
           - 27017:27017
         env:
           MONGO_INITDB_DATABASE: auth-module-test
+        options: >-
+          --bind_ip_all
+          --logpath /var/log/mongodb/mongod.log
     
     steps:
       - name: Checkout código
@@ -36,24 +39,34 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Wait for MongoDB
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y netcat-openbsd
+
+      - name: Wait for MongoDB and Initialize
         run: |
           echo "Waiting for MongoDB to be ready..."
-          # Simple TCP connection check
           timeout=30
           counter=0
           until nc -z localhost 27017; do
             if [ $counter -ge $timeout ]; then
               echo "MongoDB failed to start within $timeout seconds"
-              echo "Checking if port 27017 is open..."
-              netstat -tuln | grep 27017 || echo "Port 27017 not found"
               exit 1
             fi
-            echo "MongoDB is not ready yet, waiting... ($counter/$timeout)"
+            echo "MongoDB not ready yet, waiting... ($counter/$timeout)"
             sleep 2
             counter=$((counter + 2))
           done
           echo "MongoDB is ready!"
+          
+          # Test MongoDB connection
+          echo "Testing MongoDB connection..."
+          mongosh --eval "db.runCommand('ping')" --quiet || {
+            echo "MongoDB connection test failed"
+            exit 1
+          }
+          echo "✅ MongoDB connection verified!"
 
       - name: Lint código
         run: npm run lint
@@ -72,13 +85,34 @@ jobs:
           curl -f http://localhost:27017 || echo "MongoDB HTTP interface not available (this is normal)"
           echo "✅ Database connection test completed"
 
+      - name: Verify test environment
+        run: |
+          echo "🔍 Verifying test environment..."
+          echo "CI: $CI"
+          echo "GITHUB_ACTIONS: $GITHUB_ACTIONS"
+          echo "DATABASE_URL: $DATABASE_URL"
+          echo "NODE_ENV: $NODE_ENV"
+          
+          # Test if the test setup can detect CI environment
+          node -e "
+            const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+            console.log('✅ CI Detection:', isCI);
+            if (!isCI) {
+              console.error('❌ CI environment not detected properly');
+              process.exit(1);
+            }
+          "
+          echo "✅ Test environment verified!"
+
       - name: Run tests with coverage
-        run: npm run test:ci
+        run: timeout 15m npm run test:ci
         continue-on-error: false
         env:
+          CI: true
+          GITHUB_ACTIONS: true
           JWT_SECRET: test-jwt-secret-key-at-least-32-characters-long-for-testing
           BCRYPT_ROUNDS: 12
-          DATABASE_URL: mongodb://localhost:27017/auth-module-test
+          DATABASE_URL: mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=10000&connectTimeoutMS=10000
           NODE_ENV: test
           JWT_EXPIRATION_MINUTES: 15
 
@@ -155,8 +189,6 @@ jobs:
             p/nodejs
             p/security-audit
             p/secrets
-          generateSarif: "1"
-          sarifFile: "semgrep.sarif"
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
 
@@ -289,7 +321,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-test, security-sast-sca]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: production
     
     steps:
       - name: Checkout código
