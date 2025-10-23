@@ -7,12 +7,8 @@
 process.env.JWT_SECRET = 'test-jwt-secret-key-at-least-32-characters-long-for-testing'
 process.env.BCRYPT_ROUNDS = '12' // Use secure rounds even for tests
 // Use MongoDB connection for tests
-// In CI environments, use direct connection for reliability
-// In local development, try replica set first, then fallback to direct connection
-const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true'
-const defaultConnection = isCI 
-  ? 'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=10000&connectTimeoutMS=10000'
-  : 'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority'
+// Always use replica set for Prisma transactions support
+const defaultConnection = 'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority'
 
 process.env.DATABASE_URL = process.env.DATABASE_URL || defaultConnection
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,20 +59,15 @@ export const waitForDatabase = async (maxRetries = 30, delay = 1000) => {
   const { PrismaClient } = await import('@prisma/client')
   
   // Try different connection strategies
-  // In CI, prioritize direct connection for reliability
+  // Always prioritize replica set for Prisma transactions
   const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true'
-  const connectionStrategies = isCI ? [
-    // CI: Direct connection first (most reliable)
-    'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=10000&connectTimeoutMS=10000',
-    'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority',
-    // Fallback to replica set in CI if direct connection fails
-    'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority'
-  ] : [
-    // Local: Replica set first (for transactions), then direct connection
+  const connectionStrategies = [
+    // Primary: Replica set connection (required for Prisma transactions)
     'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority',
+    // Fallback: Replica set with direct connection
     'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&directConnection=true&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority',
-    'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority',
-    'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=10000&connectTimeoutMS=10000'
+    // Last resort: Direct connection (may not support transactions)
+    'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority'
   ]
   
   for (const strategy of connectionStrategies) {
