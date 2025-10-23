@@ -40,14 +40,14 @@ describe('Auth Utilities', () => {
     });
 
     it('should throw error for invalid user data', async () => {
-      await expect(createToken(null as any)).rejects.toThrow('Token creation failed');
-      await expect(createToken(undefined as any)).rejects.toThrow('Token creation failed');
-      await expect(createToken({} as any)).rejects.toThrow('Token creation failed');
+      await expect(createToken(null as any, null as any, null as any)).rejects.toThrow('Token creation failed');
+      await expect(createToken(undefined as any, undefined as any, undefined as any)).rejects.toThrow('Token creation failed');
+      await expect(createToken('', '', '')).rejects.toThrow('Token creation failed');
     });
 
     it('should throw error for missing required fields', async () => {
-      await expect(createToken({ id: 'user123' } as any)).rejects.toThrow('Token creation failed');
-      await expect(createToken({ email: 'test@example.com' } as any)).rejects.toThrow('Token creation failed');
+      await expect(createToken('', 'test@example.com', 'user123')).rejects.toThrow('Token creation failed');
+      await expect(createToken('user123', '', 'user123')).rejects.toThrow('Token creation failed');
     });
   });
 

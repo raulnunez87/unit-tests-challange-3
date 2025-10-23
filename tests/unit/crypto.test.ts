@@ -36,7 +36,7 @@ describe('Crypto Utilities', () => {
   describe('hashPassword', () => {
     it('should hash a password successfully', async () => {
       const bcrypt = await import('bcrypt');
-      vi.mocked(bcrypt.default.hash).mockResolvedValue('hashed-password-123');
+      vi.mocked(bcrypt.default.hash).mockResolvedValue('hashed-password-123' as never);
 
       const result = await hashPassword('SecurePassword123!');
 
@@ -46,7 +46,7 @@ describe('Crypto Utilities', () => {
 
     it('should use correct bcrypt rounds from environment', async () => {
       const bcrypt = await import('bcrypt');
-      vi.mocked(bcrypt.default.hash).mockResolvedValue('hashed-password');
+      vi.mocked(bcrypt.default.hash).mockResolvedValue('hashed-password' as never);
 
       await hashPassword('SecurePassword123!');
 
@@ -79,7 +79,7 @@ describe('Crypto Utilities', () => {
   describe('verifyPassword', () => {
     it('should verify correct password', async () => {
       const bcrypt = await import('bcrypt');
-      vi.mocked(bcrypt.default.compare).mockResolvedValue(true);
+      vi.mocked(bcrypt.default.compare).mockResolvedValue(true as never);
 
       const result = await verifyPassword('SecurePass123!', 'hashed-password');
 
@@ -89,7 +89,7 @@ describe('Crypto Utilities', () => {
 
     it('should reject incorrect password', async () => {
       const bcrypt = await import('bcrypt');
-      vi.mocked(bcrypt.default.compare).mockResolvedValue(false);
+      vi.mocked(bcrypt.default.compare).mockResolvedValue(false as never);
 
       const result = await verifyPassword('WrongPassword', 'hashed-password');
 
@@ -250,8 +250,8 @@ describe('Crypto Utilities', () => {
   describe('Integration Tests', () => {
     it('should hash and verify password correctly', async () => {
       const bcrypt = await import('bcrypt');
-      vi.mocked(bcrypt.default.hash).mockResolvedValue('hashed-password');
-      vi.mocked(bcrypt.default.compare).mockResolvedValue(true);
+      vi.mocked(bcrypt.default.hash).mockResolvedValue('hashed-password' as never);
+      vi.mocked(bcrypt.default.compare).mockResolvedValue(true as never);
 
       const password = 'SecurePassword123!';
       const hashed = await hashPassword(password);
@@ -263,8 +263,8 @@ describe('Crypto Utilities', () => {
 
     it('should reject wrong password after hashing', async () => {
       const bcrypt = await import('bcrypt');
-      vi.mocked(bcrypt.default.hash).mockResolvedValue('hashed-password');
-      vi.mocked(bcrypt.default.compare).mockResolvedValue(false);
+      vi.mocked(bcrypt.default.hash).mockResolvedValue('hashed-password' as never);
+      vi.mocked(bcrypt.default.compare).mockResolvedValue(false as never);
 
       const password = 'SecurePassword123!';
       const wrongPassword = 'WrongPassword';

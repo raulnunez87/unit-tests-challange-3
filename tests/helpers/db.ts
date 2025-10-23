@@ -30,10 +30,12 @@ const getPrismaClient = (): PrismaClient => {
   if (connectionPool.size >= MAX_CONNECTIONS) {
     // Close oldest connection if pool is full
     const oldestKey = connectionPool.keys().next().value
-    const oldestClient = connectionPool.get(oldestKey)
-    if (oldestClient) {
-      oldestClient.$disconnect().catch(() => {})
-      connectionPool.delete(oldestKey)
+    if (oldestKey) {
+      const oldestClient = connectionPool.get(oldestKey)
+      if (oldestClient) {
+        oldestClient.$disconnect().catch(() => {})
+        connectionPool.delete(oldestKey)
+      }
     }
   }
   

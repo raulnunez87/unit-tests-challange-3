@@ -483,7 +483,7 @@ describe.skip('NoSQL Injection Security Tests', () => {
 
       // Add many malicious fields
       for (let i = 0; i < 1000; i++) {
-        largePayload[`malicious_${i}`] = { $ne: null, $or: ['admin'], $regex: '.*' };
+        (largePayload as any)[`malicious_${i}`] = { $ne: null, $or: ['admin'], $regex: '.*' };
       }
 
       const startTime = Date.now();

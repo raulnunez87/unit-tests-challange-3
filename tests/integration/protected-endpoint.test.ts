@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { POST as registerHandler } from '@/app/api/auth/register-mock/route';
 
+const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000';
+
 // Helper function for testing
 async function registerUser(data: any) {
   const request = new NextRequest('http://localhost:3000/api/auth/register-mock', {

@@ -3,6 +3,8 @@ import { NextRequest } from 'next/server';
 import { POST as registerHandler } from '@/app/api/auth/register-mock/route';
 import { POST as loginHandler } from '@/app/api/auth/login-mock/route';
 
+const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000';
+
 // Helper functions for testing
 async function registerUser(data: any, headers: any = {}) {
   const request = new NextRequest('http://localhost:3000/api/auth/register-mock', {

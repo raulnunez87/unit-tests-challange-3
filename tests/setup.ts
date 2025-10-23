@@ -87,7 +87,8 @@ export const waitForDatabase = async (maxRetries = 30, delay = 1000) => {
         console.log(`✅ Database connection successful with strategy: ${strategy}`)
         return true
       } catch (error) {
-        console.warn(`Database connection attempt ${i + 1}/${maxRetries} failed with strategy ${strategy}:`, error.message)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        console.warn(`Database connection attempt ${i + 1}/${maxRetries} failed with strategy ${strategy}:`, errorMessage)
         if (i === maxRetries - 1) {
           console.warn(`Strategy ${strategy} failed after ${maxRetries} attempts`)
           break // Try next strategy
