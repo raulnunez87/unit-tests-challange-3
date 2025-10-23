@@ -49,7 +49,8 @@
     "zod": "^3.22.0",
     "bcrypt": "^5.1.0",
     "jose": "^5.0.0",
-    "lru-cache": "^10.0.0"
+    "lru-cache": "^10.0.0",
+    "mongodb": "^6.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

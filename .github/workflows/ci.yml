@@ -39,7 +39,13 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y netcat-openbsd
+          sudo apt-get install -y netcat-openbsd wget gnupg
+          
+          # Install MongoDB Shell (mongosh)
+          wget -qO - https://www.mongodb.org/static/pgp/server-7.0.asc | sudo apt-key add -
+          echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+          sudo apt-get update
+          sudo apt-get install -y mongodb-mongosh
 
       - name: Wait for MongoDB and Initialize
         run: |
@@ -59,11 +65,34 @@ jobs:
           
           # Test MongoDB connection
           echo "Testing MongoDB connection..."
-          mongosh --eval "db.runCommand('ping')" --quiet || {
-            echo "MongoDB connection test failed"
-            exit 1
-          }
-          echo "✅ MongoDB connection verified!"
+          if command -v mongosh &> /dev/null; then
+            mongosh --eval "db.runCommand('ping')" --quiet || {
+              echo "MongoDB connection test failed"
+              exit 1
+            }
+            echo "✅ MongoDB connection verified with mongosh!"
+          else
+            echo "⚠️ mongosh not available, testing with Node.js..."
+            # Fallback: test connection with Node.js
+            node -e "
+              const { MongoClient } = require('mongodb');
+              const client = new MongoClient('mongodb://localhost:27017');
+              client.connect()
+                .then(() => client.db('admin').command({ ping: 1 }))
+                .then(() => {
+                  console.log('✅ MongoDB connection verified with Node.js!');
+                  process.exit(0);
+                })
+                .catch((err) => {
+                  console.error('❌ MongoDB connection failed:', err.message);
+                  process.exit(1);
+                })
+                .finally(() => client.close());
+            " || {
+              echo "MongoDB connection test failed"
+              exit 1
+            }
+          fi
 
       - name: Lint código
         run: npm run lint
