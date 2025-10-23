@@ -7,7 +7,7 @@
 process.env.JWT_SECRET = 'test-jwt-secret-key-at-least-32-characters-long-for-testing'
 process.env.BCRYPT_ROUNDS = '12' // Use secure rounds even for tests
 // Use MongoDB with replica set for tests (required by Prisma)
-process.env.DATABASE_URL = 'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=60000&connectTimeoutMS=60000&maxPoolSize=10&minPoolSize=1'
+process.env.DATABASE_URL = 'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ;(process.env as any).NODE_ENV = 'test'
 process.env.JWT_EXPIRATION_MINUTES = '15'
@@ -57,12 +57,12 @@ export const waitForDatabase = async (maxRetries = 30, delay = 1000) => {
   
   // Try different connection strategies
   const connectionStrategies = [
-    // Strategy 1: Replica set with longer timeout and connection pooling (required by Prisma for transactions)
-    'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=60000&connectTimeoutMS=60000&maxPoolSize=10&minPoolSize=1',
-    // Strategy 2: Replica set with direct connection and longer timeout
-    'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&directConnection=true&serverSelectionTimeoutMS=60000&connectTimeoutMS=60000&maxPoolSize=10&minPoolSize=1',
+    // Strategy 1: Replica set with optimized settings (required by Prisma for transactions)
+    'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority',
+    // Strategy 2: Replica set with direct connection and shorter timeout
+    'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&directConnection=true&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority',
     // Strategy 3: Direct connection without replica set (fallback)
-    'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=60000&connectTimeoutMS=60000&maxPoolSize=10&minPoolSize=1'
+    'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority'
   ]
   
   for (const strategy of connectionStrategies) {

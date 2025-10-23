@@ -23,12 +23,16 @@ describe('Authentication Register API', () => {
   beforeEach(async () => {
     // Clear rate limiting cache before each test
     clearRateLimit()
+    // Clear all mocks before each test
+    vi.clearAllMocks()
   })
 
   afterEach(async () => {
     // Clean up any test users that might have been created
     await deleteTestUser(testUser.email)
     clearRateLimit()
+    // Restore all mocks after each test
+    vi.restoreAllMocks()
   })
 
   describe('POST /api/auth/register', () => {
@@ -299,9 +303,6 @@ describe('Authentication Register API', () => {
       expect(data.success).toBe(false)
       expect(data.error).toBe('Internal Server Error')
       expect(data.message).toBe('An error occurred during registration. Please try again.')
-
-      // Restore original method
-      vi.restoreAllMocks()
     })
 
     it('should handle unique constraint database errors', async () => {
