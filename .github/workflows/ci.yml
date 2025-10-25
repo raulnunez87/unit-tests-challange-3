@@ -15,17 +15,6 @@ jobs:
     name: Build, Test & Coverage
     runs-on: ubuntu-latest
     
-    services:
-      mongodb:
-        image: mongo:7.0
-        ports:
-          - 27017:27017
-        env:
-          MONGO_INITDB_DATABASE: auth-module-test
-        options: >-
-          --replSet rs0
-          --bind_ip_all
-    
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
@@ -49,6 +38,18 @@ jobs:
           echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
           sudo apt-get update
           sudo apt-get install -y mongodb-mongosh
+
+      - name: Start MongoDB with Replica Set
+        run: |
+          echo "Starting MongoDB with replica set configuration..."
+          docker run -d --name mongodb-ci \
+            -p 27017:27017 \
+            -e MONGO_INITDB_DATABASE=auth-module-test \
+            mongo:7.0 \
+            mongod --replSet rs0 --bind_ip_all
+          
+          echo "Waiting for MongoDB to start..."
+          sleep 10
 
       - name: Wait for MongoDB and Initialize Replica Set
         run: |
@@ -175,6 +176,13 @@ jobs:
           DATABASE_URL: mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=10000&connectTimeoutMS=10000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority
           NODE_ENV: test
           JWT_EXPIRATION_MINUTES: 15
+
+      - name: Cleanup MongoDB container
+        if: always()
+        run: |
+          echo "Cleaning up MongoDB container..."
+          docker stop mongodb-ci || true
+          docker rm mongodb-ci || true
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
