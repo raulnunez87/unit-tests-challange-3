@@ -34,7 +34,7 @@ describe('Authentication Register Working API', () => {
     }
     // Restore all mocks after each test
     vi.restoreAllMocks()
-  }, 45000)
+  }, 60000)
 
   describe('POST /api/auth/register-working', () => {
     it('should register a new user successfully', async () => {

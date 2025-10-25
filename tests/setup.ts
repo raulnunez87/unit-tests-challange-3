@@ -40,7 +40,8 @@ export const ensureDatabaseReady = async () => {
   if (databaseReady) return true
   
   console.log('🔍 Checking database connection...')
-  const isReady = await waitForDatabase(15, 3000) // 15 attempts, 3 second delay
+  // Reduce attempts and delay for faster startup
+  const isReady = await waitForDatabase(10, 2000) // 10 attempts, 2 second delay
   
   if (isReady) {
     console.log('✅ Database connection verified')
@@ -55,7 +56,7 @@ export const ensureDatabaseReady = async () => {
 }
 
 // Database connection helper for tests
-export const waitForDatabase = async (maxRetries = 30, delay = 1000) => {
+export const waitForDatabase = async (maxRetries = 10, delay = 1000) => {
   const { PrismaClient } = await import('@prisma/client')
   
   // Try different connection strategies
@@ -63,12 +64,19 @@ export const waitForDatabase = async (maxRetries = 30, delay = 1000) => {
   const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true'
   const connectionStrategies = [
     // Primary: Replica set connection (required for Prisma transactions)
-    'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority',
+    'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=5000&connectTimeoutMS=5000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority',
     // Fallback: Replica set with direct connection
-    'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&directConnection=true&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority',
+    'mongodb://localhost:27017/auth-module-test?replicaSet=rs0&directConnection=true&serverSelectionTimeoutMS=5000&connectTimeoutMS=5000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority',
     // Last resort: Direct connection (may not support transactions)
-    'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=30000&connectTimeoutMS=30000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority'
+    'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=5000&connectTimeoutMS=5000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority'
   ]
+  
+  // In CI, also try without replica set first
+  if (isCI) {
+    connectionStrategies.unshift(
+      'mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=3000&connectTimeoutMS=3000&maxPoolSize=5&minPoolSize=1'
+    )
+  }
   
   for (const strategy of connectionStrategies) {
     console.log(`Trying connection strategy: ${strategy}`)

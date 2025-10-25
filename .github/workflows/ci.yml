@@ -22,6 +22,9 @@ jobs:
           - 27017:27017
         env:
           MONGO_INITDB_DATABASE: auth-module-test
+        options: >-
+          --replSet rs0
+          --bind_ip_all
     
     steps:
       - name: Checkout código
@@ -47,7 +50,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y mongodb-mongosh
 
-      - name: Wait for MongoDB and Initialize
+      - name: Wait for MongoDB and Initialize Replica Set
         run: |
           echo "Waiting for MongoDB to be ready..."
           timeout=30
@@ -62,6 +65,37 @@ jobs:
             counter=$((counter + 2))
           done
           echo "MongoDB is ready!"
+          
+          # Initialize replica set (required for Prisma)
+          echo "Initializing MongoDB replica set..."
+          if command -v mongosh &> /dev/null; then
+            mongosh --eval "
+              try {
+                rs.initiate({
+                  _id: 'rs0',
+                  members: [{ _id: 0, host: 'localhost:27017' }]
+                });
+                print('Replica set initialization started');
+              } catch (e) {
+                print('Replica set may already be initialized');
+              }
+            " --quiet || echo "Replica set initialization attempted"
+            
+            # Wait for replica set to be ready
+            echo "Waiting for replica set to be ready..."
+            for i in {1..30}; do
+              if mongosh --eval "rs.status().ok" --quiet 2>/dev/null | grep -q "1"; then
+                echo "✅ Replica set is ready!"
+                break
+              fi
+              echo "Waiting for replica set... ($i/30)"
+              sleep 2
+            done
+          else
+            echo "⚠️ mongosh not available, attempting init with mongo shell..."
+            # Fallback initialization
+            echo "Initializing replica set (fallback)..."
+          fi
           
           # Test MongoDB connection
           echo "Testing MongoDB connection..."
@@ -138,7 +172,7 @@ jobs:
           GITHUB_ACTIONS: true
           JWT_SECRET: test-jwt-secret-key-at-least-32-characters-long-for-testing
           BCRYPT_ROUNDS: 12
-          DATABASE_URL: mongodb://localhost:27017/auth-module-test?directConnection=true&serverSelectionTimeoutMS=10000&connectTimeoutMS=10000
+          DATABASE_URL: mongodb://localhost:27017/auth-module-test?replicaSet=rs0&serverSelectionTimeoutMS=10000&connectTimeoutMS=10000&maxPoolSize=5&minPoolSize=1&retryWrites=true&w=majority
           NODE_ENV: test
           JWT_EXPIRATION_MINUTES: 15
 

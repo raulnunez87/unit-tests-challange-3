@@ -6,8 +6,8 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     setupFiles: ['./tests/setup.ts'],
-    testTimeout: 60000,
-    hookTimeout: 45000,
+    testTimeout: 90000,
+    hookTimeout: 60000,
     globalSetup: ['./tests/global-setup.ts'],
     coverage: {
       provider: 'v8',

@@ -72,8 +72,8 @@ const createTestPrismaClient = () => {
 // Helper function to retry database operations
 const retryDatabaseOperation = async <T>(
   operation: () => Promise<T>,
-  maxRetries: number = 5,
-  delay: number = 2000
+  maxRetries: number = 3,
+  delay: number = 1000
 ): Promise<T> => {
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -95,9 +95,8 @@ const retryDatabaseOperation = async <T>(
       
       if (isConnectionError) {
         console.warn(`Database connection issue, retrying... (${i + 1}/${maxRetries}): ${errorMessage}`)
-        // Use exponential backoff for connection issues
-        const backoffDelay = delay * Math.pow(2, i)
-        await new Promise(resolve => setTimeout(resolve, backoffDelay))
+        // Use shorter delay for faster retries
+        await new Promise(resolve => setTimeout(resolve, delay))
       } else {
         console.warn(`Database operation failed, retrying... (${i + 1}/${maxRetries}): ${errorMessage}`)
         await new Promise(resolve => setTimeout(resolve, delay))
@@ -126,7 +125,7 @@ export const cleanupTestData = async () => {
   }
 }
 
-export const waitForDatabaseConnection = async (maxRetries = 30, delay = 1000) => {
+export const waitForDatabaseConnection = async (maxRetries = 10, delay = 500) => {
   const prisma = createTestPrismaClient()
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -157,6 +156,8 @@ export const createTestUser = async (userData: {
 }) => {
   const prisma = getPrismaClient()
   try {
+    // Ensure connection is established
+    await prisma.$connect()
     return await retryDatabaseOperation(async () => {
       return await prisma.user.create({
         data: userData
