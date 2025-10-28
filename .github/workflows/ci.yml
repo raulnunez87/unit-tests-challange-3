@@ -272,10 +272,36 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Start MongoDB for Build
+        run: |
+          echo "Starting MongoDB for build process..."
+          docker run -d --name mongodb-build \
+            -p 27017:27017 \
+            -e MONGO_INITDB_DATABASE=auth-module-build \
+            mongo:7.0 \
+            mongod --replSet rs0 --bind_ip_all
+          
+          echo "Waiting for MongoDB to start..."
+          sleep 10
+          
+          # Initialize replica set
+          docker exec mongodb-build mongosh --eval "
+            try {
+              rs.initiate({
+                _id: 'rs0',
+                members: [{ _id: 0, host: 'localhost:27017' }]
+              });
+              print('Replica set initialization started');
+            } catch (e) {
+              print('Replica set may already be initialized');
+            }
+          " --quiet || echo "Replica set initialization attempted"
+
       - name: Build application
         run: npm run build
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET || 'test-jwt-secret-that-is-at-least-32-characters-long' }}
+          DATABASE_URL: mongodb://localhost:27017/auth-module-build
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -287,6 +313,12 @@ jobs:
             package.json
             package-lock.json
           retention-days: 7
+
+      - name: Cleanup MongoDB Build
+        if: always()
+        run: |
+          docker stop mongodb-build || true
+          docker rm mongodb-build || true
 
   # Job de notificaciones
   notify:
