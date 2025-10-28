@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { PrismaClient } from '@prisma/client'
-import prisma from '@/lib/prisma'
+
+// Import prisma after ensuring environment is set up
+let prisma: PrismaClient
 
 /**
  * Tests for the Prisma client configuration
@@ -11,11 +13,15 @@ describe.skip('Prisma Client', () => {
   const originalEnv = process.env.NODE_ENV
   const originalGlobal = globalThis.__prisma
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Clear any existing mocks
     vi.clearAllMocks()
     // Clear global prisma instance
     globalThis.__prisma = undefined
+    
+    // Import prisma after environment is set up
+    const prismaModule = await import('@/lib/prisma')
+    prisma = prismaModule.default
   })
 
   afterEach(() => {
